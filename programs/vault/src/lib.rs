@@ -1,10 +1,10 @@
 use anchor_lang::prelude::*;
 
+mod constant;
 mod context;
 mod error;
 mod instructions;
 mod state;
-mod constant;
 
 use context::*;
 
@@ -14,10 +14,7 @@ declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 pub mod bucket_vault {
     use super::*;
 
-    pub fn initialize(
-        ctx: Context<Initialize>,
-        vault_bump: u8
-    ) -> ProgramResult {
+    pub fn initialize(ctx: Context<Initialize>, vault_bump: u8) -> ProgramResult {
         instructions::initialize::handle(ctx, vault_bump)?;
 
         Ok(())
@@ -29,12 +26,7 @@ pub mod bucket_vault {
         token_b_amount: u64,
         min_mint_amount: u64,
     ) -> ProgramResult {
-        instructions::deposit::handle(
-            ctx,
-            token_a_amount,
-            token_b_amount,
-            min_mint_amount,
-        )?;
+        instructions::deposit::handle(ctx, token_a_amount, token_b_amount, min_mint_amount)?;
 
         Ok(())
     }

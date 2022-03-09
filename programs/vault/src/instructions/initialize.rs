@@ -1,7 +1,4 @@
-use {
-    crate::context::Initialize,
-    anchor_lang::prelude::*,
-};
+use {crate::context::Initialize, anchor_lang::prelude::*};
 
 pub fn handle(ctx: Context<Initialize>, vault_bump: u8) -> ProgramResult {
     msg!(
@@ -10,10 +7,9 @@ pub fn handle(ctx: Context<Initialize>, vault_bump: u8) -> ProgramResult {
         ctx.accounts.authority.key()
     );
 
-    ctx.accounts.vault.init(
-        vault_bump,
-        ctx.accounts.authority.key(),
-    );
+    ctx.accounts
+        .vault
+        .init(vault_bump, ctx.accounts.authority.key());
 
     Ok(())
 }

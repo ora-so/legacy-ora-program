@@ -2,8 +2,12 @@ use anchor_lang::prelude::*;
 
 #[error]
 pub enum ErrorCode {
-    #[msg("Base vault error")]
-    BaseVaultError,
+    #[msg("Insufficient token balance")]
+    InsufficientTokenBalance,
+    #[msg("Impossible token ratio request")]
+    ImpossibleTokenRatioRequested,
+    #[msg("Math Error")]
+    MathError,
 }
 
 #[macro_export]

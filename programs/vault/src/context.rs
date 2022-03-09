@@ -1,18 +1,13 @@
 use {
-    anchor_lang::prelude::*,
-    stable_swap_anchor::{
-        Deposit as DepositLiquidity,
-        Withdraw as WithdrawLiquidity,
-        SwapUserContext,
-        SwapToken,
-        SwapOutput
-    },
-    anchor_spl::token::{Token, TokenAccount},
     crate::{
-        constant::{
-            VAULT_SEED
-        },
-        state::vault::Vault,
+        constant::VAULT_SEED,
+        state::vault::{Vault, VAULT_ACCOUNT_SPACE},
+    },
+    anchor_lang::prelude::*,
+    anchor_spl::token::{Mint, Token, TokenAccount, Transfer},
+    stable_swap_anchor::{
+        Deposit as DepositLiquidity, SwapOutput, SwapToken, SwapUserContext,
+        Withdraw as WithdrawLiquidity,
     },
 };
 
@@ -21,6 +16,9 @@ pub struct Initialize<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
+    // note: might want to revisit these PDA seeds. mainly the authority key since an authority could
+    // change over time. further, this design is limiting because it assumes a 1-1 mapping between
+    // authority address and vault.
     #[account(
         init,
         seeds = [
@@ -29,19 +27,16 @@ pub struct Initialize<'info> {
         ],
         bump,
         payer = authority,
-        space = 1000 // BUCKET_ACCOUNT_SPACE
+        space = VAULT_ACCOUNT_SPACE
     )]
     pub vault: Account<'info, Vault>,
 
-    /// CHECK: no read/write ops. used to set a PDA attribute.
-    pub deposit_authority: AccountInfo<'info>,
-    /// CHECK: no read/write ops. used to set a PDA attribute.
-    pub withdraw_authority: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
+    /// no restrictions because anyone can deposit, technically
     #[account(mut)]
     pub authority: Signer<'info>,
 
@@ -53,20 +48,40 @@ pub struct Deposit<'info> {
         ],
         bump,
     )]
-    pub vault: Account<'info, Vault>,
+    pub vault: Box<Account<'info, Vault>>,
 
+    /// deposit into a saber pool requires token A and B. in the future,
+    /// the deposit function won't be so restrictive. but, the simplest
+    /// vault implementation requires us to do deposit + LP in 1 instruction
+    /// since "vault" is actually just a pass through.
+    #[account(
+        mut,
+        constraint = user_token_a.owner == authority.key()
+    )]
+    pub user_token_a: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        constraint = user_token_b.owner == authority.key()
+    )]
+    pub user_token_b: Account<'info, TokenAccount>,
+
+    /// custom struct to encapsulate all accounts required for the saber deposit operation
     pub saber_deposit: SaberDeposit<'info>,
 
+    /// =============== PROGRAM ACCOUNTS ===============
     pub system_program: Program<'info, System>,
 
     pub token_program: Program<'info, Token>,
 }
 
-// assume we want to withdraw an equal amount of both underlying assets in the pool
-// https://github.com/saber-hq/stable-swap/blob/9c93edf591908c0198273546b6c17e07da56b11c/stable-swap-anchor/src/instructions.rs#L167
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
-    #[account(mut)]
+    /// only a single authority should be allowed to withdraw funds from the vault.
+    #[account(
+      mut,
+      constraint = authority.key() == vault.authority.key()
+    )]
     pub authority: Signer<'info>,
 
     #[account(
@@ -77,10 +92,18 @@ pub struct Withdraw<'info> {
         ],
         bump,
     )]
-    pub vault: Account<'info, Vault>,
+    pub vault: Box<Account<'info, Vault>>,
 
+    #[account(mut)]
+    pub user_token_a: Box<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub user_token_b: Box<Account<'info, TokenAccount>>,
+
+    /// custom struct to encapsulate all accounts required for the saber withdraw operation
     pub saber_withdraw: SaberWithdraw<'info>,
 
+    /// =============== PROGRAM ACCOUNTS ===============
     pub system_program: Program<'info, System>,
 
     pub token_program: Program<'info, Token>,
@@ -88,66 +111,62 @@ pub struct Withdraw<'info> {
 
 #[derive(Accounts)]
 pub struct SaberDeposit<'info> {
+    /// custom struct to encapsulate all common saber swap accounts
     pub saber_swap_common: SaberSwapCommon<'info>,
 
     /// The output account for LP tokens
-    /// CHECK: verified via CPI call for saber swap
     #[account(mut)]
-    pub output_lp: UncheckedAccount<'info>,
+    pub output_lp: Box<Account<'info, TokenAccount>>,
 }
 
 #[derive(Accounts)]
 pub struct SaberWithdraw<'info> {
+    /// custom struct to encapsulate all common saber swap accounts
     pub saber_swap_common: SaberSwapCommon<'info>,
 
     /// The output account for LP tokens
-    /// CHECK: verified via CPI call for saber swap
     #[account(mut)]
-    pub input_lp: UncheckedAccount<'info>,
+    pub input_lp: Box<Account<'info, TokenAccount>>,
 
     /// The token account for the fees associated with token "B"
-    /// CHECK: verified via CPI call for saber swap
     #[account(mut)]
-    pub output_a_fees: UncheckedAccount<'info>,
+    pub output_a_fees: Box<Account<'info, TokenAccount>>,
 
     /// The token account for the fees associated with token "A"
-    /// CHECK: verified via CPI call for saber swap
     #[account(mut)]
-    pub output_b_fees: UncheckedAccount<'info>,
+    pub output_b_fees: Box<Account<'info, TokenAccount>>,
 }
 
 #[derive(Accounts)]
 pub struct SaberSwapCommon<'info> {
     /// saber stable swap program
-    /// CHECK: verified via CPI call for saber swap
+    /// CHECK: verified via saber stable swap CPI call
     pub swap: UncheckedAccount<'info>,
 
     /// The authority of the swap.
-    /// CHECK: verified via CPI call for saber swap
+    /// CHECK: verified via saber stable swap CPI call
     pub swap_authority: UncheckedAccount<'info>,
 
     /// The token account for the pool's reserves of this token
     #[account(mut)]
-    pub user_token_a: Account<'info, TokenAccount>,
+    pub source_token_a: Box<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub reserve_a: Box<Account<'info, TokenAccount>>,
 
     /// The token account for the pool's reserves of this token
     #[account(mut)]
-    pub reserve_a: Account<'info, TokenAccount>,
+    pub source_token_b: Box<Account<'info, TokenAccount>>,
 
     /// The token account for the pool's reserves of this token
     #[account(mut)]
-    pub user_token_b: Account<'info, TokenAccount>,
-
-    /// The token account for the pool's reserves of this token
-    #[account(mut)]
-    pub reserve_b: Account<'info, TokenAccount>,
+    pub reserve_b: Box<Account<'info, TokenAccount>>,
 
     /// The pool mint of the swap
-    /// CHECK: verified via CPI call for saber swap
     #[account(mut)]
-    pub pool_mint: UncheckedAccount<'info>,
+    pub pool_mint: Box<Account<'info, Mint>>,
 
-    /// CHECK: verified via CPI call for saber swap
+    /// CHECK: verified via saber stable swap CPI call
     pub saber_program: UncheckedAccount<'info>,
 }
 
@@ -156,40 +175,86 @@ pub struct SaberSwapCommon<'info> {
 // ======================================
 
 impl<'info> Deposit<'info> {
+    pub fn into_transfer_token_context(
+        &self,
+        user_token: AccountInfo<'info>,
+        vault_token: AccountInfo<'info>,
+    ) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
+        let cpi_program = self.token_program.to_account_info();
+
+        let cpi_accounts = Transfer {
+            /// source ATA
+            from: user_token,
+            /// destination ATA
+            to: vault_token,
+            /// entity authorizing transfer
+            authority: self.authority.to_account_info(),
+        };
+
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
 
     pub fn into_saber_swap_deposit_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, DepositLiquidity<'info>> {
-        let cpi_program = self.saber_deposit.saber_swap_common.saber_program.to_account_info();
+        let cpi_program = self
+            .saber_deposit
+            .saber_swap_common
+            .saber_program
+            .to_account_info();
 
         let cpi_accounts = DepositLiquidity {
             /// The context of the user
             user: SwapUserContext {
-                /// The spl_token program.
+                /// The spl_token program
                 token_program: self.token_program.to_account_info(),
-                /// The authority of the swap.
-                swap_authority: self.saber_deposit.saber_swap_common.swap_authority.to_account_info(),
-                /// The authority of the user.
+                /// The authority of the swap
+                swap_authority: self
+                    .saber_deposit
+                    .saber_swap_common
+                    .swap_authority
+                    .to_account_info(),
+                /// The authority of the user
                 user_authority: self.vault.to_account_info(),
                 /// The pool's swap account
                 swap: self.saber_deposit.saber_swap_common.swap.to_account_info(),
             },
             /// The "A" token of the swap
             input_a: SwapToken {
-                /// The token account associated with the swap requester's source ATA
-                user: self.saber_deposit.saber_swap_common.user_token_a.to_account_info(),
-                /// The token account for the pool’s reserves of this token.
-                reserve: self.saber_deposit.saber_swap_common.reserve_a.to_account_info(),
+                /// The depositor's token A ATA
+                user: self
+                    .saber_deposit
+                    .saber_swap_common
+                    .source_token_a
+                    .to_account_info(),
+                /// The pool’s token A ATA
+                reserve: self
+                    .saber_deposit
+                    .saber_swap_common
+                    .reserve_a
+                    .to_account_info(),
             },
             /// The "B" token of the swap
             input_b: SwapToken {
-                /// The token account associated with the swap requester's destination ATA
-                user: self.saber_deposit.saber_swap_common.user_token_b.to_account_info(),
-                /// The token account for the pool’s reserves of this token.
-                reserve: self.saber_deposit.saber_swap_common.reserve_b.to_account_info(),
+                /// The depositor's token B ATA
+                user: self
+                    .saber_deposit
+                    .saber_swap_common
+                    .source_token_b
+                    .to_account_info(),
+                /// The pool’s token B ATA
+                reserve: self
+                    .saber_deposit
+                    .saber_swap_common
+                    .reserve_b
+                    .to_account_info(),
             },
-            /// The pool mint of the swap
-            pool_mint: self.saber_deposit.saber_swap_common.pool_mint.to_account_info(),
+            /// The pool's LP mint
+            pool_mint: self
+                .saber_deposit
+                .saber_swap_common
+                .pool_mint
+                .to_account_info(),
             /// The output account for LP tokens
             output_lp: self.saber_deposit.output_lp.to_account_info(),
         };
@@ -199,52 +264,96 @@ impl<'info> Deposit<'info> {
 }
 
 impl<'info> Withdraw<'info> {
-
     pub fn into_saber_swap_withdraw_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, WithdrawLiquidity<'info>> {
-        let cpi_program = self.saber_withdraw.saber_swap_common.saber_program.to_account_info();
+        let cpi_program = self
+            .saber_withdraw
+            .saber_swap_common
+            .saber_program
+            .to_account_info();
 
         let cpi_accounts = WithdrawLiquidity {
             /// The context of the user
             user: SwapUserContext {
-                /// The spl_token program.
+                /// The spl_token program
                 token_program: self.token_program.to_account_info(),
-                /// The authority of the swap.
-                swap_authority: self.saber_withdraw.saber_swap_common.swap_authority.to_account_info(),
-                /// The authority of the user.
+                /// The authority of the swap
+                swap_authority: self
+                    .saber_withdraw
+                    .saber_swap_common
+                    .swap_authority
+                    .to_account_info(),
+                /// The authority of the user
                 user_authority: self.vault.to_account_info(),
                 /// The pool's swap account
                 swap: self.saber_withdraw.saber_swap_common.swap.to_account_info(),
             },
-            /// The input account for LP tokens
+            /// The withdrawer's LP ATA
             input_lp: self.saber_withdraw.input_lp.to_account_info(),
-            /// The pool mint of the swap
-            pool_mint: self.saber_withdraw.saber_swap_common.pool_mint.to_account_info(),
+            /// The pool's LP mint
+            pool_mint: self
+                .saber_withdraw
+                .saber_swap_common
+                .pool_mint
+                .to_account_info(),
             /// The "A" token of the swap
             output_a: SwapOutput {
-                // The token accounts of the user and the token.
                 user_token: SwapToken {
-                    /// The token account associated with the swap requester's destination ATA
-                    user: self.saber_withdraw.saber_swap_common.user_token_a.to_account_info(),
-                    /// The token account for the pool’s reserves of this token.
-                    reserve: self.saber_withdraw.saber_swap_common.reserve_a.to_account_info(),
+                    /// The withdrawer's token A ATA
+                    user: self
+                        .saber_withdraw
+                        .saber_swap_common
+                        .source_token_a
+                        .to_account_info(),
+                    /// The pool’s token A ATA
+                    reserve: self
+                        .saber_withdraw
+                        .saber_swap_common
+                        .reserve_a
+                        .to_account_info(),
                 },
-                // The token account for the fees associated with the token.
+                // The token account for the fees associated with the token
                 fees: self.saber_withdraw.output_a_fees.to_account_info(),
             },
             /// The "B" token of the swap
             output_b: SwapOutput {
-                // The token accounts of the user and the token.
                 user_token: SwapToken {
-                    /// The token account associated with the swap requester's destination ATA
-                    user: self.saber_withdraw.saber_swap_common.user_token_b.to_account_info(),
-                    /// The token account for the pool’s reserves of this token.
-                    reserve: self.saber_withdraw.saber_swap_common.reserve_b.to_account_info(),
+                    /// The withdrawer's token B ATA
+                    user: self
+                        .saber_withdraw
+                        .saber_swap_common
+                        .source_token_b
+                        .to_account_info(),
+                    /// The pool’s token B ATA
+                    reserve: self
+                        .saber_withdraw
+                        .saber_swap_common
+                        .reserve_b
+                        .to_account_info(),
                 },
-                // The token account for the fees associated with the token.
+                // The token account for the fees associated with the token
                 fees: self.saber_withdraw.output_b_fees.to_account_info(),
             },
+        };
+
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+
+    pub fn into_transfer_token_context(
+        &self,
+        authority_token: AccountInfo<'info>,
+        vault_token: AccountInfo<'info>,
+    ) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
+        let cpi_program = self.token_program.to_account_info();
+
+        let cpi_accounts = Transfer {
+            /// source ATA
+            from: vault_token,
+            /// destination ATA
+            to: authority_token,
+            /// entity authorizing transfer
+            authority: self.vault.to_account_info(),
         };
 
         CpiContext::new(cpi_program, cpi_accounts)
