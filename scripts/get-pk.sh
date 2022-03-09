@@ -1,0 +1,1 @@
+solana-keygen pubkey ./target/deploy/bucket_vault-keypair.json
