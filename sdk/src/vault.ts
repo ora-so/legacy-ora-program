@@ -159,13 +159,7 @@ export class VaultClient extends AccountUtils {
 
     const tokenAmountA = new u64(poolConfig.depositConfig.tokenAmountA);
     const tokenAmountB = new u64(poolConfig.depositConfig.tokenAmountB);
-
-    // todo: move on-chain; for now, just use 15% slippage so that transaction goes through.
-    const minMintAmount =
-      (poolConfig.depositConfig.tokenAmountA +
-        poolConfig.depositConfig.tokenAmountB) *
-      0.85;
-    const _minMintAmount = new u64(minMintAmount);
+    const minMintAmount = new u64(poolConfig.depositConfig.minMintAmount);
 
     // we need 5 ATAs: vault token A source, vault token B source, vault LP
     const userTokenA = await this.getOrCreateATA(
@@ -206,7 +200,7 @@ export class VaultClient extends AccountUtils {
     return this.vaultProgram.rpc.deposit(
       tokenAmountA,
       tokenAmountB,
-      _minMintAmount,
+      minMintAmount,
       {
         accounts: {
           authority: signerInfo.payer,

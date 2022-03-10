@@ -4,10 +4,13 @@ import { Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
 export interface DepositConfig {
   tokenAmountA: number;
   tokenAmountB: number;
+  minMintAmount: number;
 }
 
 export interface WithdrawConfig {
   tokenAmountLp: number;
+  tokenAmountA: number;
+  tokenAmountB: number;
 }
 
 export interface PoolConfig {
