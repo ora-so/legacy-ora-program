@@ -11,7 +11,7 @@ pub fn handle(
     min_mint_amount: u64,
 ) -> ProgramResult {
     // note: we don't check attempted transfer amounts vs actual ATA balances because transfer CPI call will
-    // handle this for us. anagously, token_a_amount + token_b_amount <= min_mint_amount because saber CPI call
+    // handle this for us. analogously, token_a_amount + token_b_amount <= min_mint_amount because saber CPI call
     // will handle this for us. additionally, in the future, we might want to handle input vs output ratios ourselves,
     // aka deciding how much slippage we are willing to accept. and/or, provide functionality for client to specify
     // their preferences.
