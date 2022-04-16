@@ -2,12 +2,24 @@ use anchor_lang::prelude::*;
 
 #[error]
 pub enum ErrorCode {
+    #[msg("PublicKeyMismatch")] // 0
+    PublicKeyMismatch,
+    #[msg("InvalidMintAuthority")] // 1
+    InvalidMintAuthority,
+    #[msg("UninitializedAccount")] // 2
+    UninitializedAccount,
+    #[msg("IncorrectOwner")] // 3
+    IncorrectOwner,
+    #[msg("PublicKeysShouldBeUnique")] // 4
+    PublicKeysShouldBeUnique,
+    #[msg("StatementFalse")] // 5
+    StatementFalse,
+    #[msg("Math Error")]
+    MathError,
     #[msg("Insufficient token balance")]
     InsufficientTokenBalance,
     #[msg("Impossible token ratio request")]
     ImpossibleTokenRatioRequested,
-    #[msg("Math Error")]
-    MathError,
 }
 
 #[macro_export]

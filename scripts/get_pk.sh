@@ -1,1 +1,1 @@
-solana-keygen pubkey ./target/deploy/bucket_vault-keypair.json
+solana-keygen pubkey ./target/deploy/vault-keypair.json

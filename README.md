@@ -1,4 +1,4 @@
-# bucket-vault
+# Vault
 
 <div>
     <div align="center">
@@ -11,54 +11,19 @@
 
 ## Description
 
-Vault aims to be deposit-and-forget yield generation protocol built by and for [bucket protocol](https://github.com/bucket-dao/bucket-program). However, the vault will be implemented with an eye toward composability such that anyone can integrate with the vault. The default vault implementation will only require users to initialize a vault, deposit funds, and redeem funds + yield. All of the other details will be abstracted away.
-
-Even though the defaults will be simple, the vault will expose configuration (e.g. risk tolerance) so that users can create vaults based on their specific use cases.
-
-### Current State
-
-The team built out the most simple version of this program for a proof-of-concept. The program is currently just a "passthrough" for providing liquidity to Saber swap pools.
-
-There are only 3 operations:
-
-1. Initialize vault: setup vault PDA so that user can deposit funds and later redeem those funds + generaated yield.
-2. Deposit: transfer a token pair from a depositor's ATAs to the vault's ATAs. At the current time, the user must deposit a token pair in order to provide liquidity. In the future, this will not be the case. Immediately after the vault receives assets, the vault will deposit the funds into the necessary Saber swap pool. The vault will then store the Saber LP token(s) that it receives for providing liquidity. There is no restriction outlining which token mints are accepted.
-3. Withdraw: Redeem deposited liquidity by burning the Saber LP token(s) held by the vault. Immediately after the vault receives liquidity from Saber, it vault will transfer the token pair back to the original user's ATAs.
+[Redacted]
 
 ### Vision
 
-The end state of the vault will allow any user or entity to permissionlessly and automatically earn yield on a pool of assets based a specific risk tolerance. A user will be able to deposit any asset(s) into an initialized vault and later redeem those asset(s) plus generated yield.
-
-#### Why factor in risk?
-
-As a stablecoin product, bucket protocol needs to be very mindful of all forms of risk when transferring ownership of assets to earn yield. A singular yield strategy that iss highly profitable but might result in loss of funds is likely not worth it. However, yield strategies with lower risk or combinations of yield strategies might make more sense.
-
-Thus, bucket highly values a protocol that can manage risk while also earning yield.
+[Redacted]
 
 #### Why build the vault?
 
-First and foremost, bucket protocol isn't dead set on building an independent vault protocol. The vault is simply a means to an end — generating yield based on risk tolerance(s). Bucket protocol would be delighted to use another open-source product. There will be technical risk regardless of the chosen path. However, a protocol managing a pool of collateral assets needs to ensure fine grained control over what is done with those assets.
-
-Additionally, building this vault means it can be further improved if other players in the ecosystem decide to build on top of it. For example, we can imagine an entity (human or smart contract) that spins up vaults with various risk profiles and manages those vaults on behalf of clients.
-
-#### Composability
-
-It doesn't make sense for vault to re-implement/fork swaps, pools, lending, etc. Instead, vault will rely on other players in the ecosystem. Any protocol that allows users to make money can be implemented — DEXs, lending protocols, derivative exchanges (e.g. Zeta, PsyOptions, Drift), yield farms, other yield aggregators, etc.
-
-Composability will enable a better vault implementation than could be achieved in isolation.
+[Redacted]
 
 #### Ecosystem value
 
-Bucket and by extension, the Vault, believes in building open-source. As a protocol that will build on other players in the ecosystem. Open source examples and documentation were invaluable resources to bucket protocol's original implementation.
-
-Further, not all protocols are open-source. The vault will have to do additional up-front work to do these integrations. So, any integrations will serve as documentation for other teams looking to do similar things.
-
----
-
-As mentioned above, this project is part of the [bucket protocol](https://github.com/bucket-dao/bucket-program), a project started at [mtnDAO](https://twitter.com/mtnDAO) for [Solana's Riptide Hackathon](https://solana.com/riptide). We are in active development. For the latest updates, follow our journey:
-
-- Website: https://bucketdao.com
-- Twitter: https://twitter.com/bucket_sol
+[Redacted]
 
 ## Respository overview
 

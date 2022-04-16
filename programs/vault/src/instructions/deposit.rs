@@ -1,75 +1,57 @@
 use {
-    crate::{constant::VAULT_SEED, context::Deposit},
+    crate::{
+        context::Deposit,
+        util::{assert_is_ata, create_ata_if_dne},
+    },
     anchor_lang::prelude::*,
     anchor_spl::token::transfer,
 };
 
-pub fn handle(
-    ctx: Context<Deposit>,
-    token_a_amount: u64,
-    token_b_amount: u64,
-    min_mint_amount: u64,
-) -> ProgramResult {
-    // note: we don't check attempted transfer amounts vs actual ATA balances because transfer CPI call will
-    // handle this for us. analogously, token_a_amount + token_b_amount <= min_mint_amount because saber CPI call
-    // will handle this for us. additionally, in the future, we might want to handle input vs output ratios ourselves,
-    // aka deciding how much slippage we are willing to accept. and/or, provide functionality for client to specify
-    // their preferences.
+/// Allow user to deposit amount of mint into the vault.
+///
+/// We will optionally create the corresponding vault ATA if it does not exist.
+/// We will verify the ATA address matches the what we expect. Then, we will
+/// proceed to transfer the tokens to that ATA.
+///
+/// feat:
+///     - determine if deposit is valid (mint for vault, state of vault, etc)
+///     - update any vault state (num deposits, etc)
+///     - issue receipt / mint SPL token(s) representing user's position in the vault?
+pub fn handle(ctx: Context<Deposit>, amount: u64) -> ProgramResult {
+    create_and_verify_destination_ata(&ctx)?;
 
-    msg!(
-        "Attempting to deposit {} of token {} and {} of token {} in exchange for minimum {} of LP token {}",
-        token_a_amount,
-        ctx.accounts.user_token_a.mint,
-        token_b_amount,
-        ctx.accounts.user_token_b.mint,
-        min_mint_amount,
-        ctx.accounts.saber_deposit.output_lp.mint
-    );
+    // transfer amount of mint from user ATA to the vault ATA
+    transfer(ctx.accounts.into_transfer_token_context(), amount)?;
 
-    // transfer token A and B amounts from user ATAs to the vault ATAs
-    transfer(
-        ctx.accounts.into_transfer_token_context(
-            ctx.accounts.user_token_a.to_account_info(),
-            ctx.accounts
-                .saber_deposit
-                .saber_swap_common
-                .source_token_a
-                .to_account_info(),
-        ),
-        token_a_amount,
+    Ok(())
+}
+
+// Create destination ATA if it DNE. Then, verify that ATA address matches what
+// we expect based on the owner and mint. We don't need to create the source ATA
+// because that must exist in order to transfer tokens from that ATA to the vault
+// ATA.
+//
+// Dev: depending on context object, we can optionally require that the destination
+// ATA exists before calling into this instruction. we do not right now, which is why
+// we create ATA if needed and then check that actual ATA matches what we expect.
+fn create_and_verify_destination_ata(ctx: &Context<Deposit>) -> ProgramResult {
+    create_ata_if_dne(
+        ctx.accounts.destination_ata.to_account_info(),
+        ctx.accounts.vault.to_account_info(),
+        ctx.accounts.mint.to_account_info(),
+        ctx.accounts.payer.to_account_info(),
+        ctx.accounts.ata_program.to_account_info(),
+        ctx.accounts.token_program.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
+        ctx.accounts.rent.to_account_info(),
+        &[],
     )?;
 
-    transfer(
-        ctx.accounts.into_transfer_token_context(
-            ctx.accounts.user_token_b.to_account_info(),
-            ctx.accounts
-                .saber_deposit
-                .saber_swap_common
-                .source_token_b
-                .to_account_info(),
-        ),
-        token_b_amount,
+    assert_is_ata(
+        &ctx.accounts.destination_ata.to_account_info(),
+        &ctx.accounts.vault.key(),
+        &ctx.accounts.mint.key(),
     )?;
-
-    let authority = ctx.accounts.authority.key();
-    let vault_signer_seeds: &[&[&[u8]]] = &[&[
-        VAULT_SEED.as_bytes(),
-        authority.as_ref(),
-        &[ctx.accounts.vault.bump],
-    ]];
-
-    // deposit tokens from vault ATA to saber pool. recieve LP tokens in a vault ATA.
-    stable_swap_anchor::deposit(
-        ctx.accounts
-            .into_saber_swap_deposit_context()
-            .with_signer(vault_signer_seeds),
-        token_a_amount,
-        token_b_amount,
-        min_mint_amount,
-    )?;
-
-    // (feat): generate a deposit receipt as a PDA for historical record keeping purposees
-    ctx.accounts.vault.increment_deposit_nonce();
 
     Ok(())
 }

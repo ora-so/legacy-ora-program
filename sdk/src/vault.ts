@@ -1,29 +1,28 @@
 import * as anchor from "@project-serum/anchor";
 import { Program, Provider, Idl, Wallet } from "@project-serum/anchor";
-import { StableSwap, SWAP_PROGRAM_ID } from "@saberhq/stableswap-sdk";
-import { TOKEN_PROGRAM_ID, u64 } from "@solana/spl-token";
 import {
-  Cluster,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+  u64,
+} from "@solana/spl-token";
+import {
   Connection,
   Keypair,
   PublicKey,
   SystemProgram,
+  SYSVAR_RENT_PUBKEY,
 } from "@solana/web3.js";
-import { SaberRegistryProvider } from "saber-swap-registry-provider";
-
 import { AccountUtils } from "./common/account-utils";
-import { DEVNET } from "./common/constant";
-import { PdaDerivationResult, SignerInfo, PoolConfig } from "./common/types";
+
+// PoolConfig
+import { PdaDerivationResult, SignerInfo } from "./common/types";
 import { getSignersFromPayer, flattenValidInstructions } from "./common/util";
-import { BucketVault as Vault } from "./types/bucket_vault";
+import { Vault } from "./types/vault";
 
 export class VaultClient extends AccountUtils {
   wallet: Wallet;
   provider!: Provider;
   vaultProgram!: Program<Vault>;
-
-  // providers
-  saberProvider!: SaberRegistryProvider;
 
   constructor(
     conn: Connection,
@@ -35,8 +34,6 @@ export class VaultClient extends AccountUtils {
     this.wallet = wallet;
     this.setProvider();
     this.setVaultProgram(idl, programId);
-
-    this.saberProvider = new SaberRegistryProvider();
   }
 
   setProvider = () => {
@@ -60,7 +57,7 @@ export class VaultClient extends AccountUtils {
       );
     } else {
       // means running inside test suite
-      this.vaultProgram = anchor.workspace.BucketVault as Program<Vault>;
+      this.vaultProgram = anchor.workspace.Vault as Program<Vault>;
     }
   };
 
@@ -128,222 +125,92 @@ export class VaultClient extends AccountUtils {
     });
   };
 
-  // todo: there is A LOT of logic for functions that interact with saber. extract into a common helper function.
+  // todo: deposit/withdraw are eerily similiar right now. i expect this will somewhat change over time
+  // or become a non-issue if we migrate to mpl lib to auto generate the core SDK.
   deposit = async (
-    poolConfig: PoolConfig,
     vault: PublicKey,
-    payer: PublicKey | Keypair,
-    cluster: Cluster = DEVNET
+    mint: PublicKey,
+    amount: u64,
+    payer: PublicKey | Keypair
   ) => {
-    if (!poolConfig.depositConfig) {
-      throw new Error("Deposit config must be defined for deposit operations");
-    }
-
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
+    const _vault = await this.fetchVault(vault);
 
-    // fetch data needed to perform swap; for now, we are only using saber, so we need to
-    // use the swap account for pool with mints A/B.
-    const swapAccount = poolConfig.swapAccount
-      ? poolConfig.swapAccount
-      : await this.saberProvider.getSwapAccountFromMints(
-          poolConfig.tokenA,
-          poolConfig.tokenB,
-          cluster
-        );
-
-    const fetchedStableSwap = await StableSwap.load(
-      this.provider.connection,
-      swapAccount,
-      SWAP_PROGRAM_ID
-    );
-
-    const tokenAmountA = new u64(poolConfig.depositConfig.tokenAmountA);
-    const tokenAmountB = new u64(poolConfig.depositConfig.tokenAmountB);
-    const minMintAmount = new u64(poolConfig.depositConfig.minMintAmount);
-
-    // we need 5 ATAs: vault token A source, vault token B source, vault LP
-    const userTokenA = await this.getOrCreateATA(
-      poolConfig.tokenA,
+    const sourceTokenAccount = await this.getOrCreateATA(
+      mint,
       signerInfo.payer,
       signerInfo.payer,
       this.provider.connection
     );
 
-    const userTokenB = await this.getOrCreateATA(
-      poolConfig.tokenB,
-      signerInfo.payer,
-      signerInfo.payer,
-      this.provider.connection
-    );
-
-    const vaultTokenA = await this.getOrCreateATA(
-      poolConfig.tokenA,
+    const destinationTokenAccount = await this.getOrCreateATA(
+      mint,
       vault,
       signerInfo.payer,
       this.provider.connection
     );
 
-    const vaultTokenB = await this.getOrCreateATA(
-      poolConfig.tokenB,
-      vault,
-      signerInfo.payer,
-      this.provider.connection
-    );
-
-    const vaultLp = await this.getOrCreateATA(
-      fetchedStableSwap.state.poolTokenMint,
-      vault,
-      signerInfo.payer,
-      this.provider.connection
-    );
-
-    return this.vaultProgram.rpc.deposit(
-      tokenAmountA,
-      tokenAmountB,
-      minMintAmount,
-      {
-        accounts: {
-          authority: signerInfo.payer,
-          vault,
-          userTokenA: userTokenA.address,
-          userTokenB: userTokenB.address,
-          saberDeposit: {
-            saberSwapCommon: {
-              swap: fetchedStableSwap.config.swapAccount,
-              swapAuthority: fetchedStableSwap.config.authority,
-              sourceTokenA: vaultTokenA.address,
-              reserveA: fetchedStableSwap.state.tokenA.reserve,
-              sourceTokenB: vaultTokenB.address,
-              reserveB: fetchedStableSwap.state.tokenB.reserve,
-              poolMint: fetchedStableSwap.state.poolTokenMint,
-              saberProgram: fetchedStableSwap.config.swapProgramID,
-            },
-            outputLp: vaultLp.address,
-          },
-          systemProgram: SystemProgram.programId,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        },
-        // note: we forgo passing in depositor's ATAs here because it's presumed they
-        // already have these tokens. otherwise, they will not be able to deposit.
-        preInstructions: flattenValidInstructions([
-          vaultTokenA,
-          vaultTokenB,
-          vaultLp,
-        ]),
-        signers: signerInfo.signers,
-      }
-    );
+    return this.vaultProgram.rpc.deposit(amount, {
+      accounts: {
+        payer: signerInfo.payer,
+        authority: _vault.vault.authority,
+        vault,
+        mint,
+        sourceAta: sourceTokenAccount.address,
+        destinationAta: destinationTokenAccount.address,
+        systemProgram: SystemProgram.programId,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        ataProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        rent: SYSVAR_RENT_PUBKEY,
+      },
+      // note: we forgo passing in depositor's ATAs here because it's presumed they
+      // already have these tokens. otherwise, they will not be able to deposit.
+      preInstructions: flattenValidInstructions([destinationTokenAccount]),
+      signers: signerInfo.signers,
+    });
   };
 
+  // todo: in the future, we should also expose a fn to redeem all of 1 mint (aka not have to explicitly specify an amount)
   withdraw = async (
-    poolConfig: PoolConfig,
     vault: PublicKey,
-    payer: PublicKey | Keypair,
-    cluster: Cluster = DEVNET
+    mint: PublicKey,
+    amount: u64,
+    payer: PublicKey | Keypair
   ) => {
-    if (!poolConfig.withdrawConfig) {
-      throw new Error(
-        "Withdraw config must be defined for withdraw operations"
-      );
-    }
-
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
+    const _vault = await this.fetchVault(vault);
 
-    // fetch data needed to perform swap; for now, we are only using saber, so we need to
-    // use he swap account for pool with mints A/B.
-    const swapAccount = poolConfig.swapAccount
-      ? poolConfig.swapAccount
-      : await this.saberProvider.getSwapAccountFromMints(
-          poolConfig.tokenA,
-          poolConfig.tokenB,
-          cluster
-        );
-
-    const fetchedStableSwap = await StableSwap.load(
-      this.provider.connection,
-      swapAccount,
-      SWAP_PROGRAM_ID
-    );
-
-    const tokenWithdrawalAmount =
-      (poolConfig.withdrawConfig.tokenAmountLp * 0.85) / 2;
-
-    // todo: move on-chain; for now, just use 15% slippage so that transaction goes through.
-    const minMintAmount = new u64(poolConfig.withdrawConfig.tokenAmountLp);
-    const _tokenWithdrawalAmount = new u64(tokenWithdrawalAmount);
-
-    // we need 5 ATAs: vault token A source, vault token B source, vault LP
-    const userTokenA = await this.getOrCreateATA(
-      poolConfig.tokenA,
-      signerInfo.payer,
-      signerInfo.payer,
-      this.provider.connection
-    );
-
-    const userTokenB = await this.getOrCreateATA(
-      poolConfig.tokenB,
-      signerInfo.payer,
-      signerInfo.payer,
-      this.provider.connection
-    );
-
-    const vaultTokenA = await this.getOrCreateATA(
-      poolConfig.tokenA,
+    const sourceTokenAccount = await this.getOrCreateATA(
+      mint,
       vault,
       signerInfo.payer,
       this.provider.connection
     );
 
-    const vaultTokenB = await this.getOrCreateATA(
-      poolConfig.tokenB,
-      vault,
+    const destinationTokenAccount = await this.getOrCreateATA(
+      mint,
+      signerInfo.payer,
       signerInfo.payer,
       this.provider.connection
     );
 
-    const vaultLp = await this.getOrCreateATA(
-      fetchedStableSwap.state.poolTokenMint,
-      vault,
-      signerInfo.payer,
-      this.provider.connection
-    );
-
-    return this.vaultProgram.rpc.withdraw(
-      minMintAmount,
-      _tokenWithdrawalAmount,
-      _tokenWithdrawalAmount,
-      {
-        accounts: {
-          authority: signerInfo.payer,
-          vault,
-          userTokenA: userTokenA.address,
-          userTokenB: userTokenB.address,
-          saberWithdraw: {
-            saberSwapCommon: {
-              swap: fetchedStableSwap.config.swapAccount,
-              swapAuthority: fetchedStableSwap.config.authority,
-              sourceTokenA: vaultTokenA.address,
-              reserveA: fetchedStableSwap.state.tokenA.reserve,
-              sourceTokenB: vaultTokenB.address,
-              reserveB: fetchedStableSwap.state.tokenB.reserve,
-              poolMint: fetchedStableSwap.state.poolTokenMint,
-              saberProgram: fetchedStableSwap.config.swapProgramID,
-            },
-            inputLp: vaultLp.address,
-            outputAFees: fetchedStableSwap.state.tokenA.adminFeeAccount,
-            outputBFees: fetchedStableSwap.state.tokenB.adminFeeAccount,
-          },
-          systemProgram: SystemProgram.programId,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        },
-        preInstructions: flattenValidInstructions([
-          vaultTokenA,
-          vaultTokenB,
-          userTokenA,
-          userTokenB,
-        ]),
-        signers: signerInfo.signers,
-      }
-    );
+    return this.vaultProgram.rpc.withdraw(amount, {
+      accounts: {
+        payer: signerInfo.payer,
+        authority: _vault.vault.authority,
+        vault,
+        mint,
+        sourceAta: sourceTokenAccount.address,
+        destinationAta: destinationTokenAccount.address,
+        systemProgram: SystemProgram.programId,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        ataProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        rent: SYSVAR_RENT_PUBKEY,
+      },
+      // note: we forgo passing in depositor's ATAs here because it's presumed they
+      // already have these tokens. otherwise, they will not be able to deposit.
+      preInstructions: flattenValidInstructions([destinationTokenAccount]),
+      signers: signerInfo.signers,
+    });
   };
 }

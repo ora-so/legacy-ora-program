@@ -1,24 +1,21 @@
 use {
-    crate::{constant::VAULT_SEED, context::Withdraw},
+    crate::{
+        constant::VAULT_SEED,
+        context::Withdraw,
+        util::{assert_is_ata, create_ata_if_dne},
+    },
     anchor_lang::prelude::*,
     anchor_spl::token::transfer,
 };
 
-/// assume we will always want to withdraw an some amount of both underlying assets in a pool.
-/// the other option is to withdraw a single asset. this is inoptimal, as a one-sided withdrawal
-/// could result in extra fees. this is to incentivize users to keep the pool balanced.
-/// https://github.com/saber-hq/stable-swap/blob/9c93edf591908c0198273546b6c17e07da56b11c/stable-swap-anchor/src/instructions.rs#L167
-pub fn handle(
-    ctx: Context<Withdraw>,
-    pool_token_amount: u64,
-    minimum_token_a_amount: u64,
-    minimum_token_b_amount: u64,
-) -> ProgramResult {
-    // note: we don't check attempted transfer amounts vs actual ATA balances because transfer CPI call will
-    // handle this for us. anagously, token_a_amount + token_b_amount <= min_mint_amount because saber CPI call
-    // will handle this for us. additionally, in the future, we might want to handle input vs output ratios ourselves,
-    // aka deciding how much slippage we are willing to accept. and/or, provide functionality for client to specify
-    // their preferences.
+/// Allow user to withdraw the amount of mint from the vault to which they are entitled.
+///
+/// feat:
+///     - determine if withdrawal is valid (mint for vault, state of vault, etc)
+///     - update any vault state (num withdrawals, user claimed funds, etc)
+///     - issue receipt / burn SPL token(s) representing user's position in the vault?
+pub fn handle(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
+    create_and_verify_destination_ata(&ctx)?;
 
     let authority = ctx.accounts.authority.key();
     let vault_signer_seeds: &[&[&[u8]]] = &[&[
@@ -27,47 +24,43 @@ pub fn handle(
         &[ctx.accounts.vault.bump],
     ]];
 
-    // transfer LP tokens from vault ATA in exchange for some ratio of tokens the specified saber pool.
-    stable_swap_anchor::withdraw(
-        ctx.accounts
-            .into_saber_swap_withdraw_context()
-            .with_signer(vault_signer_seeds),
-        pool_token_amount,
-        minimum_token_a_amount,
-        minimum_token_b_amount,
-    )?;
-
-    // transfer token A and B amounts from vault ATAs to the authority ATAs
+    // transfer amount of mint from vault ATA to the user ATA
     transfer(
         ctx.accounts
-            .into_transfer_token_context(
-                ctx.accounts.user_token_a.to_account_info(),
-                ctx.accounts
-                    .saber_withdraw
-                    .saber_swap_common
-                    .source_token_a
-                    .to_account_info(),
-            )
+            .into_transfer_token_context()
             .with_signer(vault_signer_seeds),
-        minimum_token_a_amount,
+        amount
     )?;
 
-    transfer(
-        ctx.accounts
-            .into_transfer_token_context(
-                ctx.accounts.user_token_b.to_account_info(),
-                ctx.accounts
-                    .saber_withdraw
-                    .saber_swap_common
-                    .source_token_b
-                    .to_account_info(),
-            )
-            .with_signer(vault_signer_seeds),
-        minimum_token_b_amount,
+    Ok(())
+}
+
+// Create destination ATA if it DNE. Then, verify that ATA address matches what
+// we expect based on the owner and mint. We don't need to create the source ATA
+// because that must exist in order to transfer tokens from that ATA to the vault
+// ATA.
+//
+// Dev: depending on context object, we can optionally require that the destination
+// ATA exists before calling into this instruction. we do not right now, which is why
+// we create ATA if needed and then check that actual ATA matches what we expect.
+fn create_and_verify_destination_ata(ctx: &Context<Withdraw>) -> ProgramResult {
+    create_ata_if_dne(
+        ctx.accounts.destination_ata.to_account_info(),
+        ctx.accounts.payer.to_account_info(),
+        ctx.accounts.mint.to_account_info(),
+        ctx.accounts.payer.to_account_info(),
+        ctx.accounts.ata_program.to_account_info(),
+        ctx.accounts.token_program.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
+        ctx.accounts.rent.to_account_info(),
+        &[],
     )?;
 
-    // (feat): generate a withdrawal receipt as a PDA for historical record keeping purposes?
-    ctx.accounts.vault.increment_withdrawal_nonce();
+    assert_is_ata(
+        &ctx.accounts.destination_ata.to_account_info(),
+        &ctx.accounts.payer.key(),
+        &ctx.accounts.mint.key(),
+    )?;
 
     Ok(())
 }
