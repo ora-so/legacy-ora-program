@@ -2,7 +2,8 @@
     "scripts": {
         "cp-idl": "./scripts/cp_idl.sh",
         "get-pk": "./scripts/get_pk.sh",
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "setup": "./scripts/setup.sh"
     },
     "dependencies": {
         "@project-serum/anchor": "^0.22.0",
