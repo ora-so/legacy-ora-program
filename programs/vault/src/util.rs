@@ -7,11 +7,18 @@ use {
             program_memory::sol_memcmp,
             program_pack::{IsInitialized, Pack},
             pubkey::PUBKEY_BYTES,
+            clock,
         },
     },
     spl_associated_token_account::get_associated_token_address,
     spl_token::state::Account as SplAccount,
+    std::convert::TryInto
 };
+
+pub fn get_current_timestamp() -> Result<u64, ProgramError> {
+    // i64 -> u64 ok to unwrap
+    Ok(clock::Clock::get()?.unix_timestamp.try_into().unwrap())
+}
 
 pub fn assert_initialized<T: Pack + IsInitialized>(
     account_info: &AccountInfo,

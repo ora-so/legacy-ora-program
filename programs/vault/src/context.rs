@@ -1,10 +1,11 @@
 use {
     crate::{
         constant::VAULT_SEED,
-        state::vault::{Vault, VAULT_ACCOUNT_SPACE},
+        state::vault::Vault,
     },
     anchor_lang::prelude::*,
     anchor_spl::token::{Mint, Token, TokenAccount, Transfer},
+    std::mem::size_of
 };
 
 #[derive(Accounts)]
@@ -23,7 +24,7 @@ pub struct Initialize<'info> {
         ],
         bump,
         payer = authority,
-        space = VAULT_ACCOUNT_SPACE
+        space = size_of::<Vault>(),
     )]
     pub vault: Account<'info, Vault>,
 

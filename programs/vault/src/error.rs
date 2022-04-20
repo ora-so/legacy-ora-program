@@ -20,6 +20,11 @@ pub enum ErrorCode {
     InsufficientTokenBalance,
     #[msg("Impossible token ratio request")]
     ImpossibleTokenRatioRequested,
+
+    #[msg("Invalid state transition")]
+    InvalidStateTransition,
+    #[msg("Missing transition at time for state")]
+    MissingTransitionAtTimeForState,
 }
 
 #[macro_export]
