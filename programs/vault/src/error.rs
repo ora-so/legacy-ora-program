@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
 
+pub type OraResult<T = ()> = std::result::Result<T, ProgramError>;
+
 #[error]
 pub enum ErrorCode {
     #[msg("PublicKeyMismatch")] // 0
@@ -25,6 +27,13 @@ pub enum ErrorCode {
     InvalidStateTransition,
     #[msg("Missing transition at time for state")]
     MissingTransitionAtTimeForState,
+
+    #[msg("Wrong account owner")]
+    WrongAccountOwner,
+    #[msg("Invalid account data")]
+    InvalidAccountData,
+    #[msg("Invalid strategy flag")]
+    InvalidStrategyFlag,
 }
 
 #[macro_export]
