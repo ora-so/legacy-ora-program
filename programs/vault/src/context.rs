@@ -1,15 +1,13 @@
 use {
-    crate::{
-        constant::VAULT_SEED,
-        state::vault::Vault,
-    },
+    crate::{constant::VAULT_SEED, state::vault::Vault},
     anchor_lang::prelude::*,
     anchor_spl::token::{Mint, Token, TokenAccount, Transfer},
-    std::mem::size_of
+    std::mem::size_of,
 };
 
 #[derive(Accounts)]
-pub struct Initialize<'info> {
+#[instruction(vault_bump: u8)]
+pub struct InitializeVault<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
@@ -27,6 +25,22 @@ pub struct Initialize<'info> {
         space = size_of::<Vault>(),
     )]
     pub vault: Account<'info, Vault>,
+
+    #[account(mut)]
+    /// CHECK: TODO
+    pub strategy: UncheckedAccount<'info>,
+    #[account(mut)]
+    /// CHECK: TODO
+    pub strategist: UncheckedAccount<'info>,
+
+    #[account(mut)]
+    pub alpha_mint: Account<'info, Mint>,
+    #[account(mut)]
+    pub alpha_lp: Account<'info, Mint>,
+    #[account(mut)]
+    pub beta_mint: Account<'info, Mint>,
+    #[account(mut)]
+    pub beta_lp: Account<'info, Mint>,
 
     pub system_program: Program<'info, System>,
 }

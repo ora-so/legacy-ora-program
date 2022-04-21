@@ -8,6 +8,7 @@ mod state;
 mod util;
 
 use context::*;
+use state::vault::VaultConfig;
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
@@ -15,9 +16,12 @@ declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 pub mod vault {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>, vault_bump: u8) -> ProgramResult {
-        instructions::initialize::handle(ctx, vault_bump)?;
-
+    pub fn initialize_vault(
+        ctx: Context<InitializeVault>,
+        vault_bump: u8,
+        vault_config: VaultConfig,
+    ) -> ProgramResult {
+        instructions::initialize_vault::handle(ctx, vault_bump, vault_config)?;
         Ok(())
     }
 

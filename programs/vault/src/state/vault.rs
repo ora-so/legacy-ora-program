@@ -1,14 +1,10 @@
 use {
-anchor_lang::prelude::*,
-crate::{
-  state::asset::Asset,
-  util::get_current_timestamp,
-  error::ErrorCode
-}
+  crate::{error::ErrorCode, state::asset::Asset, util::get_current_timestamp},
+  anchor_lang::prelude::*,
 };
 
 #[repr(C)]
-#[derive(Debug, Default, PartialEq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Debug, Default, PartialEq)]
 pub struct VaultConfig {
   pub strategy: Pubkey,
   pub authority: Pubkey,
@@ -25,12 +21,12 @@ pub enum State {
   Deposit,
   Live,
   Redeem,
-  Withdraw
+  Withdraw,
 }
 
 impl Default for State {
   fn default() -> Self {
-      State::Inactive
+    State::Inactive
   }
 }
 
@@ -62,47 +58,33 @@ pub struct Vault {
 }
 
 impl Vault {
-  pub fn init(
-      &mut self,
-      bump: u8,
-      config: VaultConfig,
-      alpha: Asset,
-      beta: Asset
-  ) {
-      self.bump = bump;
+  pub fn init(&mut self, bump: u8, config: VaultConfig, alpha: Asset, beta: Asset) {
+    self.bump = bump;
 
-      // vault assets
-      self.alpha = alpha;
-      self.beta = beta;
+    // vault assets
+    self.alpha = alpha;
+    self.beta = beta;
 
-      // vault config
-      self.authority = config.authority;
-      self.strategy = config.strategy;
-      self.strategist = config.strategist;
-      self.fixed_rate = config.fixed_rate;
-      self.start_at = config.start_at;
-      self.invest_at = config.invest_at;
-      self.redeem_at = config.redeem_at;
-      self.state = State::Inactive;
+    // vault config
+    self.authority = config.authority;
+    self.strategy = config.strategy;
+    self.strategist = config.strategist;
+    self.fixed_rate = config.fixed_rate;
+    self.start_at = config.start_at;
+    self.invest_at = config.invest_at;
+    self.redeem_at = config.redeem_at;
+    self.state = State::Inactive;
   }
 
-  pub fn update_authority(
-    &mut self,
-    authority: Pubkey
-  ) {
+  pub fn update_authority(&mut self, authority: Pubkey) {
     self.authority = authority;
   }
 
-  pub fn update_strategist(
-    &mut self,
-    strategist: Pubkey
-  ) {
+  pub fn update_strategist(&mut self, strategist: Pubkey) {
     self.strategist = strategist;
   }
 
-  pub fn transition(
-    &mut self,
-  ) -> ProgramResult {
+  pub fn transition(&mut self) -> ProgramResult {
     let timestamp = get_current_timestamp()?;
 
     if timestamp >= self.redeem_at {
@@ -112,7 +94,7 @@ impl Vault {
     } else if timestamp >= self.start_at {
       self.state = State::Deposit
     } else {
-      return Err(ErrorCode::MissingTransitionAtTimeForState.into())
+      return Err(ErrorCode::MissingTransitionAtTimeForState.into());
     }
 
     Ok(())
