@@ -37,4 +37,16 @@ pub mod vault {
 
         Ok(())
     }
+
+    pub fn invest(ctx: Context<Invest>, slippage_tolerance: u16) -> ProgramResult {
+        instructions::invest::handle(ctx, slippage_tolerance)?;
+
+        Ok(())
+    }
+
+    pub fn redeem(ctx: Context<Redeem>, slippage_tolerance: u16) -> ProgramResult {
+        instructions::redeem::handle(ctx, slippage_tolerance)?;
+
+        Ok(())
+    }
 }

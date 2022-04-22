@@ -3,10 +3,11 @@ pub mod saber;
 use {
   anchor_lang::prelude::*,
   crate::{
+    context::{Invest, Redeem},
     error::{OraResult, ErrorCode},
-    state::{vault::Vault},
   },
   std::cell::RefMut,
+  std::ops::{Deref, DerefMut},
   enumflags2::BitFlags,
   core::mem::size_of
 };
@@ -16,8 +17,8 @@ use saber::SaberStrategy;
 pub const ANCHOR_DISCRIIMINATOR_OFFSET: usize = 8;
 
 pub trait StrategyActions {
-  fn invest(&self, vault: Account<Vault>) -> ProgramResult;
-  fn redeem(&self, vault: Account<Vault>) -> ProgramResult;
+  fn invest(&self, ctx: Context<Invest>, slippage_tolerance: u16) -> ProgramResult;
+  fn redeem(&self, ctx: Context<Redeem>, slippage_tolerance: u16) -> ProgramResult;
 
   // other shared actions, like compound
 }
@@ -30,6 +31,24 @@ pub enum StrategyFlag {
 
 pub enum Strategy<'a> {
   SaberLpV0(RefMut<'a, saber::SaberStrategy>),
+}
+
+impl<'a> Deref for Strategy<'a> {
+  type Target = saber::SaberStrategy;
+
+  fn deref(&self) -> &Self::Target {
+    match self {
+      Strategy::SaberLpV0(saber_lp_v0) => saber_lp_v0.deref(),
+    }
+  }
+}
+
+impl<'a> DerefMut for Strategy<'a> {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    match self {
+      Strategy::SaberLpV0(saber_lp_v0) => saber_lp_v0.deref_mut(),
+    }
+  }
 }
 
 impl<'a> Strategy<'a> {

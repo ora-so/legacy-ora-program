@@ -1,5 +1,8 @@
 use {
-    crate::error::ErrorCode,
+    crate::{
+        error::ErrorCode,
+        math_error
+    },
     anchor_lang::{
         prelude::*,
         solana_program::{
@@ -103,3 +106,22 @@ pub fn create_ata_if_dne<'a>(
 
     Ok(())
 }
+
+// assuming slippage is in basis points, 10_000 is max amount
+pub fn with_slippage(
+    amount: u64,
+    slippage: u16
+  ) -> std::result::Result<u64, ProgramError> {
+    let total = 10_000_usize;
+    let slippage_inverse = total
+      .checked_sub(slippage.into())
+      .ok_or_else(math_error!())?;
+
+    let result = (amount as usize)
+      .checked_mul(slippage_inverse)
+      .ok_or_else(math_error!())?
+      .checked_div(total)
+      .ok_or_else(math_error!())?;
+
+    Ok(result as u64)
+  }

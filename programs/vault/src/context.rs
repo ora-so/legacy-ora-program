@@ -61,6 +61,7 @@ pub struct Deposit<'info> {
             authority.key().to_bytes().as_ref()
         ],
         bump,
+        constraint = vault.authority == authority.key(),
     )]
     pub vault: Box<Account<'info, Vault>>,
 
@@ -107,6 +108,7 @@ pub struct Withdraw<'info> {
             authority.key().to_bytes().as_ref()
         ],
         bump,
+        constraint = vault.authority == authority.key(),
     )]
     pub vault: Box<Account<'info, Vault>>,
 
@@ -137,40 +139,145 @@ pub struct Withdraw<'info> {
     pub rent: Sysvar<'info, Rent>,
 }
 
-// ======================================
-// CPI CONTEXT TRANSFORMATIONS
-// ======================================
+#[derive(Accounts)]
+pub struct Invest<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
 
-impl<'info> Deposit<'info> {
-    pub fn into_transfer_token_context(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
-        let cpi_program = self.token_program.to_account_info();
+    /// CHECK: read-only account to validate vault address
+    pub authority: AccountInfo<'info>,
 
-        let cpi_accounts = Transfer {
-            /// source ATA
-            from: self.source_ata.to_account_info(),
-            /// destination ATA
-            to: self.destination_ata.to_account_info(),
-            /// entity authorizing transfer
-            authority: self.payer.to_account_info(),
-        };
+    /// CHECK: pubkey matched in context, validation done in instruction
+    pub strategy: UncheckedAccount<'info>,
 
-        CpiContext::new(cpi_program, cpi_accounts)
-    }
+    #[account(
+        mut,
+        seeds = [
+            VAULT_SEED.as_bytes(),
+            authority.key().to_bytes().as_ref()
+        ],
+        bump,
+        constraint = vault.strategy == strategy.key(),
+        constraint = vault.authority == authority.key(),
+        constraint = vault.strategist == payer.key()
+    )]
+    pub vault: Box<Account<'info, Vault>>,
+
+    /// CHECK: vault ATA to hold LP after investing assets
+    #[account(mut)]
+    pub vault_lp: Account<'info, TokenAccount>,
+
+    /// custom struct to encapsulate all accounts required for the saber deposit operation.
+    /// not a sustainable model for multiple integrations, but should work for now.
+    pub saber_deposit: SaberDeposit<'info>,
+
+    /// CHECK: validate expected vs actual address
+    #[account(address = spl_associated_token_account::ID)]
+    pub ata_program: AccountInfo<'info>,
+
+    pub rent: Sysvar<'info, Rent>,
 }
 
-impl<'info> Withdraw<'info> {
-    pub fn into_transfer_token_context(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
-        let cpi_program = self.token_program.to_account_info();
+#[derive(Accounts)]
+pub struct Redeem<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
 
-        let cpi_accounts = Transfer {
-            /// source ATA
-            from: self.source_ata.to_account_info(),
-            /// destination ATA
-            to: self.destination_ata.to_account_info(),
-            /// entity authorizing transfer
-            authority: self.vault.to_account_info(),
-        };
+    /// CHECK: read-only account to validate vault address
+    pub authority: AccountInfo<'info>,
 
-        CpiContext::new(cpi_program, cpi_accounts)
-    }
+    /// CHECK: pubkey matched in context, validation done in instruction
+    pub strategy: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [
+            VAULT_SEED.as_bytes(),
+            authority.key().to_bytes().as_ref()
+        ],
+        bump,
+        constraint = vault.strategy == strategy.key(),
+        constraint = vault.authority == authority.key(),
+        constraint = vault.strategist == payer.key()
+    )]
+    pub vault: Box<Account<'info, Vault>>,
+
+    /// custom struct to encapsulate all accounts required for the saber deposit operation.
+    /// not a sustainable model for multiple integrations, but should work for now.
+    pub saber_withdraw: SaberWithdraw<'info>,
+
+    /// CHECK: validate expected vs actual address
+    #[account(address = spl_associated_token_account::ID)]
+    pub ata_program: AccountInfo<'info>,
+
+    pub rent: Sysvar<'info, Rent>,
 }
+
+// ======================================
+// [START] SABER SPECIFIC CONTEXTS
+#[derive(Accounts)]
+pub struct SaberDeposit<'info> {
+    /// custom struct to encapsulate all common saber swap accounts
+    pub saber_swap_common: SaberSwapCommon<'info>,
+
+    /// The output account for LP tokens
+    #[account(mut)]
+    pub output_lp: Box<Account<'info, TokenAccount>>,
+}
+
+#[derive(Accounts)]
+pub struct SaberWithdraw<'info> {
+    /// custom struct to encapsulate all common saber swap accounts
+    pub saber_swap_common: SaberSwapCommon<'info>,
+
+    /// The output account for LP tokens
+    #[account(mut)]
+    pub input_lp: Box<Account<'info, TokenAccount>>,
+
+    /// The token account for the fees associated with token "B"
+    #[account(mut)]
+    pub output_a_fees: Box<Account<'info, TokenAccount>>,
+
+    /// The token account for the fees associated with token "A"
+    #[account(mut)]
+    pub output_b_fees: Box<Account<'info, TokenAccount>>,
+}
+
+#[derive(Accounts)]
+pub struct SaberSwapCommon<'info> {
+    /// saber stable swap program
+    /// CHECK: verified via saber stable swap CPI call
+    pub swap: UncheckedAccount<'info>,
+
+    /// The authority of the swap.
+    /// CHECK: verified via saber stable swap CPI call
+    pub swap_authority: UncheckedAccount<'info>,
+
+    /// The token account for the pool's reserves of this token
+    #[account(mut)]
+    pub source_token_a: Box<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub reserve_a: Box<Account<'info, TokenAccount>>,
+
+    /// The token account for the pool's reserves of this token
+    #[account(mut)]
+    pub source_token_b: Box<Account<'info, TokenAccount>>,
+
+    /// The token account for the pool's reserves of this token
+    #[account(mut)]
+    pub reserve_b: Box<Account<'info, TokenAccount>>,
+
+    /// The pool mint of the swap
+    #[account(mut)]
+    pub pool_mint: Box<Account<'info, Mint>>,
+
+    /// CHECK: verified via saber stable swap CPI call
+    pub saber_program: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
+
+    pub token_program: Program<'info, Token>,
+}
+// [END] SABER SPECIFIC CONTEXTS
+// ======================================

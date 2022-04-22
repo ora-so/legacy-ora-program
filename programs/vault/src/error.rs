@@ -34,6 +34,9 @@ pub enum ErrorCode {
     InvalidAccountData,
     #[msg("Invalid strategy flag")]
     InvalidStrategyFlag,
+
+    #[msg("Invalid vault state")]
+    InvalidVaultState,
 }
 
 #[macro_export]

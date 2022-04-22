@@ -4,7 +4,7 @@ use {
         util::{assert_is_ata, create_ata_if_dne},
     },
     anchor_lang::prelude::*,
-    anchor_spl::token::transfer,
+    anchor_spl::token::{transfer, Transfer},
 };
 
 /// Allow user to deposit amount of mint into the vault.
@@ -54,4 +54,21 @@ fn create_and_verify_destination_ata(ctx: &Context<Deposit>) -> ProgramResult {
     )?;
 
     Ok(())
+}
+
+impl<'info> Deposit<'info> {
+    pub fn into_transfer_token_context(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
+        let cpi_program = self.token_program.to_account_info();
+
+        let cpi_accounts = Transfer {
+            /// source ATA
+            from: self.source_ata.to_account_info(),
+            /// destination ATA
+            to: self.destination_ata.to_account_info(),
+            /// entity authorizing transfer
+            authority: self.payer.to_account_info(),
+        };
+
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
 }
