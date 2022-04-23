@@ -1,4 +1,10 @@
-use anchor_lang::prelude::*;
+use {
+  anchor_lang::prelude::*,
+  crate::{
+    error::ErrorCode,
+    math_error
+  },
+};
 
 #[repr(C)]
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, PartialEq)]
@@ -18,6 +24,39 @@ pub struct Asset {
   pub invested: u64,
   /// amount receieved once
   pub received: u64,
+}
+
+impl Asset {
+  pub fn builder() -> AssetBuilder {
+    AssetBuilder::new()
+  }
+
+  // todo: handle asset_cap
+  // todo: handle user_cap
+
+  pub fn add_deposit(&mut self, deposited: u64) -> ProgramResult {
+    self.deposited = self.deposited
+      .checked_add(deposited)
+      .ok_or_else(math_error!())?;
+
+    Ok(())
+  }
+
+  pub fn add_investment(&mut self, invested: u64) -> ProgramResult {
+    self.invested = self.invested
+      .checked_add(invested)
+      .ok_or_else(math_error!())?;
+
+    Ok(())
+  }
+
+  pub fn update_receipt(&mut self, received: u64) -> ProgramResult {
+    self.received = self.received
+      .checked_add(received)
+      .ok_or_else(math_error!())?;
+
+    Ok(())
+  }
 }
 
 pub struct AssetBuilder {
@@ -54,26 +93,5 @@ impl AssetBuilder {
       invested: 0,
       received: 0,
     }
-  }
-}
-
-impl Asset {
-  pub fn builder() -> AssetBuilder {
-    AssetBuilder::new()
-  }
-
-  // todo: handle asset_cap
-  // todo: handle user_cap
-
-  pub fn update_deposited(&mut self, deposited: u64) {
-    self.deposited = deposited;
-  }
-
-  pub fn update_invested(&mut self, invested: u64) {
-    self.invested = invested;
-  }
-
-  pub fn update_received(&mut self, received: u64) {
-    self.received = received;
   }
 }

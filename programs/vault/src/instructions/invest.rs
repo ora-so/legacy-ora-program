@@ -14,6 +14,7 @@ use {
 };
 
 pub fn handle(ctx: Context<Invest>, slippage_tolerance: u16) -> ProgramResult {
+  ctx.accounts.vault.try_transition()?;
   require!(ctx.accounts.vault.state == State::Live, ErrorCode::InvalidVaultState);
 
   let strategy_account = ctx.accounts.strategy.to_account_info();

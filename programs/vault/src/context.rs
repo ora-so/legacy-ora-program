@@ -29,16 +29,20 @@ pub struct InitializeVault<'info> {
     #[account(mut)]
     /// CHECK: TODO
     pub strategy: UncheckedAccount<'info>,
+
     #[account(mut)]
     /// CHECK: TODO
     pub strategist: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub alpha_mint: Account<'info, Mint>,
+
     #[account(mut)]
     pub alpha_lp: Account<'info, Mint>,
+
     #[account(mut)]
     pub beta_mint: Account<'info, Mint>,
+
     #[account(mut)]
     pub beta_lp: Account<'info, Mint>,
 
@@ -65,8 +69,9 @@ pub struct Deposit<'info> {
     )]
     pub vault: Box<Account<'info, Vault>>,
 
-    /// CHECK: validate expected vs actual address
     pub mint: Account<'info, Mint>,
+
+    pub lp: Account<'info, Mint>,
 
     #[account(
         mut,
@@ -112,8 +117,12 @@ pub struct Withdraw<'info> {
     )]
     pub vault: Box<Account<'info, Vault>>,
 
-    /// CHECK: validate expected vs actual address
     pub mint: Account<'info, Mint>,
+
+    pub lp: Account<'info, Mint>,
+
+    #[account(mut)]
+    pub source_lp: Account<'info, TokenAccount>,
 
     #[account(
         mut,

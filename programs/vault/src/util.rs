@@ -15,7 +15,8 @@ use {
     },
     spl_associated_token_account::get_associated_token_address,
     spl_token::state::Account as SplAccount,
-    std::convert::TryInto
+    std::convert::TryInto,
+    anchor_spl::token::{transfer, Transfer, mint_to, MintTo},
 };
 
 pub fn get_current_timestamp() -> Result<u64, ProgramError> {
@@ -107,21 +108,140 @@ pub fn create_ata_if_dne<'a>(
     Ok(())
 }
 
+// Create destination ATA if it DNE. Then, verify that ATA address matches what
+// we expect based on the owner and mint. We don't need to create the source ATA
+// because that must exist in order to transfer tokens from that ATA to the vault
+// ATA.
+//
+// Dev: depending on context object, we can optionally require that the destination
+// ATA exists before calling into this instruction. we do not right now, which is why
+// we create ATA if needed and then check that actual ATA matches what we expect.
+pub fn verify_ata<'info>(
+    destination: AccountInfo<'info>,
+    wallet: AccountInfo<'info>,
+    mint: AccountInfo<'info>,
+    fee_payer: AccountInfo<'info>,
+    ata_program: AccountInfo<'info>,
+    token_program: AccountInfo<'info>,
+    system_program: AccountInfo<'info>,
+    rent: AccountInfo<'info>,
+    fee_payer_seeds: &[&[u8]],
+) -> ProgramResult {
+    create_ata_if_dne(
+        destination.clone(),
+        wallet.clone(),
+        mint.clone(),
+        fee_payer.clone(),
+        ata_program,
+        token_program.clone(),
+        system_program,
+        rent,
+        fee_payer_seeds,
+    )?;
+
+    assert_is_ata(
+        &destination,
+        &wallet.key(),
+        &mint.key(),
+    )?;
+
+    Ok(())
+}
+
+// Call system transfer instruction after creating destination ATA if it DNE, and verifying the ATA
+pub fn transfer_with_verified_ata<'info>(
+    source: AccountInfo<'info>,
+    destination: AccountInfo<'info>,
+    wallet: AccountInfo<'info>,
+    mint: AccountInfo<'info>,
+    fee_payer: AccountInfo<'info>,
+    ata_program: AccountInfo<'info>,
+    token_program: AccountInfo<'info>,
+    system_program: AccountInfo<'info>,
+    rent: AccountInfo<'info>,
+    fee_payer_seeds: &[&[u8]],
+    transfer_authority:  AccountInfo<'info>,
+    transfer_authority_seeds: &[&[u8]],
+    amount: u64
+) -> ProgramResult {
+    verify_ata(
+        destination.clone(),
+        wallet,
+        mint,
+        fee_payer.clone(),
+        ata_program,
+        token_program.clone(),
+        system_program,
+        rent,
+        fee_payer_seeds,
+    )?;
+
+    let transfer_accounts = Transfer {
+        from: source,
+        to: destination,
+        authority: transfer_authority,
+    };
+
+    transfer(CpiContext::new(token_program, transfer_accounts)
+        .with_signer(&[transfer_authority_seeds]), amount)?;
+
+    Ok(())
+}
+
+pub fn mint_with_verified_ata<'info>(
+    destination: AccountInfo<'info>,
+    wallet: AccountInfo<'info>,
+    mint: AccountInfo<'info>,
+    fee_payer: AccountInfo<'info>,
+    ata_program: AccountInfo<'info>,
+    token_program: AccountInfo<'info>,
+    system_program: AccountInfo<'info>,
+    rent: AccountInfo<'info>,
+    fee_payer_seeds: &[&[u8]],
+    mint_authority: AccountInfo<'info>,
+    mint_authority_seeds: &[&[u8]],
+    amount: u64
+) -> ProgramResult {
+    verify_ata(
+        destination.clone(),
+        wallet,
+        mint.clone(),
+        fee_payer.clone(),
+        ata_program,
+        token_program.clone(),
+        system_program,
+        rent,
+        fee_payer_seeds,
+    )?;
+
+    let mint_to_accounts = MintTo {
+        mint: mint,
+        to: destination,
+        authority: mint_authority,
+    };
+
+    // make sure mint authority signs
+    mint_to(CpiContext::new(token_program, mint_to_accounts)
+        .with_signer(&[mint_authority_seeds]), amount)?;
+
+    Ok(())
+}
+
 // assuming slippage is in basis points, 10_000 is max amount
 pub fn with_slippage(
     amount: u64,
     slippage: u16
-  ) -> std::result::Result<u64, ProgramError> {
+) -> std::result::Result<u64, ProgramError> {
     let total = 10_000_usize;
     let slippage_inverse = total
-      .checked_sub(slippage.into())
-      .ok_or_else(math_error!())?;
+        .checked_sub(slippage.into())
+        .ok_or_else(math_error!())?;
 
     let result = (amount as usize)
-      .checked_mul(slippage_inverse)
-      .ok_or_else(math_error!())?
-      .checked_div(total)
-      .ok_or_else(math_error!())?;
+        .checked_mul(slippage_inverse)
+        .ok_or_else(math_error!())?
+        .checked_div(total)
+        .ok_or_else(math_error!())?;
 
     Ok(result as u64)
-  }
+}

@@ -2,10 +2,12 @@ use {
     crate::{
         constant::VAULT_SEED,
         context::Withdraw,
-        util::{assert_is_ata, create_ata_if_dne},
+        state::{vault::State, asset::Asset},
+        util::{transfer_with_verified_ata},
+        error::ErrorCode
     },
     anchor_lang::prelude::*,
-    anchor_spl::token::{transfer, Transfer},
+    anchor_spl::token::{burn, Burn},
 };
 
 /// Allow user to withdraw the amount of mint from the vault to which they are entitled.
@@ -15,36 +17,30 @@ use {
 ///     - update any vault state (num withdrawals, user claimed funds, etc)
 ///     - issue receipt / burn SPL token(s) representing user's position in the vault?
 pub fn handle(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
-    create_and_verify_destination_ata(&ctx)?;
+    ctx.accounts.vault.try_transition()?;
+    require!(ctx.accounts.vault.state == State::Withdraw, ErrorCode::InvalidVaultState);
+
+    let asset = ctx.accounts.vault.get_asset(ctx.accounts.mint.key())?;
+    require!(ctx.accounts.lp.key() == asset.lp , ErrorCode::InvalidLpMint);
+
+    // require user to withdraw all at once? can optionally change in the future?
+    let lp_amount = ctx.accounts.source_lp.amount;
+    burn(
+        ctx.accounts.into_burn_reserve_token_context(),
+        lp_amount,
+    )?;
+
+    let withdrawal_allowance = process_withdrawal_for_user(&asset, lp_amount)?;
 
     let authority = ctx.accounts.authority.key();
-    let vault_signer_seeds: &[&[&[u8]]] = &[&[
+    let vault_signer_seeds = &[
         VAULT_SEED.as_bytes(),
         authority.as_ref(),
         &[ctx.accounts.vault.bump],
-    ]];
+    ];
 
-    // transfer amount of mint from vault ATA to the user ATA
-    transfer(
-        ctx.accounts
-            .into_transfer_token_context()
-            .with_signer(vault_signer_seeds),
-        amount
-    )?;
-
-    Ok(())
-}
-
-// Create destination ATA if it DNE. Then, verify that ATA address matches what
-// we expect based on the owner and mint. We don't need to create the source ATA
-// because that must exist in order to transfer tokens from that ATA to the vault
-// ATA.
-//
-// Dev: depending on context object, we can optionally require that the destination
-// ATA exists before calling into this instruction. we do not right now, which is why
-// we create ATA if needed and then check that actual ATA matches what we expect.
-fn create_and_verify_destination_ata(ctx: &Context<Withdraw>) -> ProgramResult {
-    create_ata_if_dne(
+    transfer_with_verified_ata(
+        ctx.accounts.source_ata.to_account_info(), // change to source
         ctx.accounts.destination_ata.to_account_info(),
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.mint.to_account_info(),
@@ -54,28 +50,35 @@ fn create_and_verify_destination_ata(ctx: &Context<Withdraw>) -> ProgramResult {
         ctx.accounts.system_program.to_account_info(),
         ctx.accounts.rent.to_account_info(),
         &[],
-    )?;
-
-    assert_is_ata(
-        &ctx.accounts.destination_ata.to_account_info(),
-        &ctx.accounts.payer.key(),
-        &ctx.accounts.mint.key(),
+        ctx.accounts.vault.to_account_info(),
+        vault_signer_seeds,
+        withdrawal_allowance
     )?;
 
     Ok(())
 }
 
+// todo: calculate how much to allow users to withdraw based on number of LP tokens,
+// which will factor in (deposit(s) + fixed/var return). for now, just burn lp/withdraw deposits at
+// a 1-1 ratio. in the future, if a user hasn't claimed excess deposits, we'll need to factor that in as well.
+pub fn process_withdrawal_for_user(
+    asset: &Asset,
+    lp_amount: u64
+) -> std::result::Result<u64, ProgramError> {
+    Ok(lp_amount)
+}
+
 impl<'info> Withdraw<'info> {
-    pub fn into_transfer_token_context(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
+    pub fn into_burn_reserve_token_context(&self) -> CpiContext<'_, '_, '_, 'info, Burn<'info>> {
         let cpi_program = self.token_program.to_account_info();
 
-        let cpi_accounts = Transfer {
-            /// source ATA
-            from: self.source_ata.to_account_info(),
-            /// destination ATA
-            to: self.destination_ata.to_account_info(),
-            /// entity authorizing transfer
-            authority: self.vault.to_account_info(),
+        let cpi_accounts = Burn {
+            /// lp mint
+            mint: self.lp.to_account_info(),
+            /// payer ATA for lp mint
+            to: self.source_lp.to_account_info(),
+            /// payer redeeming burning tokens in exchange for deposits + returns
+            authority: self.payer.to_account_info(),
         };
 
         CpiContext::new(cpi_program, cpi_accounts)

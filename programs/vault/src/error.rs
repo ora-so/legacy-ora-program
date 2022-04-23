@@ -37,6 +37,10 @@ pub enum ErrorCode {
 
     #[msg("Invalid vault state")]
     InvalidVaultState,
+    #[msg("Non-existent Asset")]
+    NonexistentAsset,
+    #[msg("Invalid LP Mint")]
+    InvalidLpMint,
 }
 
 #[macro_export]

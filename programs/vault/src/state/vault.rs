@@ -99,4 +99,22 @@ impl Vault {
 
     Ok(())
   }
+
+  // allow vault to attempt transition if possible. this can help prevent an async
+  // instruction invocation to transition vault state.
+  pub fn try_transition(&mut self) -> ProgramResult {
+    match self.transition() {
+      Ok(_) | Err(_) => Ok(()),
+    }
+  }
+
+  pub fn get_asset(&mut self, mint: Pubkey) -> std::result::Result<Asset, ProgramError> {
+    let asset = match mint {
+      m if self.alpha.mint == m => self.alpha,
+      m if self.beta.mint == m => self.beta,
+      _ => return Err(ErrorCode::NonexistentAsset.into()),
+    };
+
+    Ok(asset)
+  }
 }
