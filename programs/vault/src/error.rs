@@ -4,20 +4,22 @@ pub type OraResult<T = ()> = std::result::Result<T, ProgramError>;
 
 #[error]
 pub enum ErrorCode {
-    #[msg("PublicKeyMismatch")] // 0
-    PublicKeyMismatch,
-    #[msg("InvalidMintAuthority")] // 1
-    InvalidMintAuthority,
-    #[msg("UninitializedAccount")] // 2
-    UninitializedAccount,
-    #[msg("IncorrectOwner")] // 3
-    IncorrectOwner,
-    #[msg("PublicKeysShouldBeUnique")] // 4
-    PublicKeysShouldBeUnique,
-    #[msg("StatementFalse")] // 5
-    StatementFalse,
     #[msg("Math Error")]
     MathError,
+    #[msg("PublicKeyMismatch")]
+    PublicKeyMismatch,
+    #[msg("BumpMismatch")]
+    BumpMismatch,
+    #[msg("InvalidMintAuthority")]
+    InvalidMintAuthority,
+    #[msg("UninitializedAccount")]
+    UninitializedAccount,
+    #[msg("IncorrectOwner")]
+    IncorrectOwner,
+    #[msg("PublicKeysShouldBeUnique")]
+    PublicKeysShouldBeUnique,
+    #[msg("AccountAlreadyInitialized")]
+    AccountAlreadyInitialized,
     #[msg("Insufficient token balance")]
     InsufficientTokenBalance,
     #[msg("Impossible token ratio request")]
@@ -27,6 +29,8 @@ pub enum ErrorCode {
     InvalidStateTransition,
     #[msg("Missing transition at time for state")]
     MissingTransitionAtTimeForState,
+    #[msg("Vault has no deposits")]
+    VaultHasNoDeposits,
 
     #[msg("Wrong account owner")]
     WrongAccountOwner,
@@ -34,6 +38,8 @@ pub enum ErrorCode {
     InvalidAccountData,
     #[msg("Invalid strategy flag")]
     InvalidStrategyFlag,
+    #[msg("Strategy already exists")]
+    StrategyAlreadyExists,
 
     #[msg("Invalid vault state")]
     InvalidVaultState,
@@ -41,15 +47,18 @@ pub enum ErrorCode {
     NonexistentAsset,
     #[msg("Invalid LP Mint")]
     InvalidLpMint,
-}
+    #[msg("Deposit exceeds user cap")]
+    DepositExceedsUserCap,
+    #[msg("Deposit exceeds asset cap")]
+    DepositExceedsAssetCap,
+    #[msg("Cannot redeem without LP tokens")]
+    CannotWithdrawWithoutLpTokens,
 
-#[macro_export]
-macro_rules! math_error {
-    () => {{
-        || {
-            let error_code = ErrorCode::MathError;
-            msg!("Error {} thrown at {}:{}", error_code, file!(), line!());
-            error_code
-        }
-    }};
+    #[msg("Data type mismatch")]
+    DataTypeMismatch,
+    #[msg("Slippage too high")]
+    SlippageTooHigh,
+
+    #[msg("Dual-sided excesss is not possible")]
+    DualSidedExcesssNotPossible,
 }

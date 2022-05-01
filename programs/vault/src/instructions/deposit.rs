@@ -1,35 +1,61 @@
 use {
     crate::{
-        constant::VAULT_SEED,
         context::Deposit,
-        util::{transfer_with_verified_ata, mint_with_verified_ata},
-        state::{vault::State, asset::Asset},
-        error::ErrorCode
+        error::ErrorCode,
+        state::{asset::Asset, deposit::history::History, vault::State},
+        util::transfer_with_verified_ata,
     },
     anchor_lang::prelude::*,
 };
 
-/// Allow user to deposit amount of mint into the vault.
+/// Allow user to deposit amount of mint into the vault. A valid deposit will adhere
+/// to the following conditions:
+///
+///   - vault is in the correct state, deposit.
+///   - the mint attempting to be deposited must match either the alpha or beta asset mint.
+///   - the receipt account for a given deposit index cannot cannot yet exist. if the account
+///     already exists with valid data, this means the deposit belongs to someone else.
+///   - the source ATA must have a sufficient balance to successfully perform the deposit.
+///   - the user's cumulative deposits must remain under the optional user cap.
+///   - the tranche's cumulative deposits must remain under the optional asset cap.
+///
+/// @dev in order to prevent failed deposits, we could optionally pass in a few posible receipts,
+///      at current index + m, where m is some whole integer
+///
+/// @dev the following does not hold true because of Anchor context - the current
+///      structure requires ATAs to already exist.
 ///
 /// We will optionally create the corresponding vault ATA if it does not exist.
 /// We will verify the ATA address matches the what we expect. Then, we will
 /// proceed to transfer the tokens to that ATA.
 ///
-/// feat:
-///     - determine if deposit is valid (mint for vault, state of vault, etc)
-///     - update any vault state (num deposits, etc)
-///     - issue receipt / mint SPL token(s) representing user's position in the vault?
-pub fn handle(ctx: Context<Deposit>, amount: u64) -> ProgramResult {
+pub fn handle(
+    ctx: Context<Deposit>,
+    receipt_bump: u8,
+    history_bump: u8,
+    amount: u64,
+) -> ProgramResult {
     ctx.accounts.vault.try_transition()?;
-    require!(ctx.accounts.vault.state == State::Deposit, ErrorCode::InvalidVaultState);
+    require!(
+        ctx.accounts.vault.state == State::Deposit,
+        ErrorCode::InvalidVaultState
+    );
 
-    let mut asset = ctx.accounts.vault.get_asset(ctx.accounts.mint.key())?;
-    require!(ctx.accounts.lp.key() == asset.lp , ErrorCode::InvalidLpMint);
-    verify_deposit_for_user(&asset)?;
+    let asset = ctx.accounts.vault.get_asset(&ctx.accounts.mint.key())?;
+    require!(ctx.accounts.lp.key() == asset.lp, ErrorCode::InvalidLpMint);
 
-    // try to transfer amount of mint from user to the vault
+    ctx.accounts.history.init_if_needed(history_bump);
+    ctx.accounts.receipt.init(
+        receipt_bump,
+        amount,
+        asset.deposited,
+        &ctx.accounts.payer.key(),
+    )?;
+
+    verify_deposit_for_user(&mut ctx.accounts.history, &asset, amount)?;
+
     transfer_with_verified_ata(
-        ctx.accounts.source_ata.to_account_info(), // change to source
+        ctx.accounts.source_ata.to_account_info(),
         ctx.accounts.destination_ata.to_account_info(),
         ctx.accounts.vault.to_account_info(),
         ctx.accounts.mint.to_account_info(),
@@ -41,45 +67,31 @@ pub fn handle(ctx: Context<Deposit>, amount: u64) -> ProgramResult {
         &[],
         ctx.accounts.payer.to_account_info(),
         &[], // user is signer
-        amount
+        amount,
     )?;
 
-    asset.add_deposit(amount)?;
-
-    // mint LP (SPL token) to user relative to the deposited amount to represent their position
-    let authority = ctx.accounts.authority.key();
-    let vault_seeds = &[
-        VAULT_SEED.as_bytes(),
-        authority.as_ref(),
-        &[ctx.accounts.vault.bump],
-    ];
-
-    // todo: assuming 1-1 amount for simplicity for now. we can figure out if we want a more complex exchange rate later.
-    mint_with_verified_ata(
-        ctx.accounts.destination_ata.to_account_info(),
-        ctx.accounts.vault.to_account_info(),
-        ctx.accounts.lp.to_account_info(),
-        ctx.accounts.payer.to_account_info(),
-        ctx.accounts.ata_program.to_account_info(),
-        ctx.accounts.token_program.to_account_info(),
-        ctx.accounts.system_program.to_account_info(),
-        ctx.accounts.rent.to_account_info(),
-        &[],
-        ctx.accounts.vault.to_account_info(),
-        vault_seeds,
-        amount
-    )?;
+    ctx.accounts
+        .vault
+        .update_deposit(&ctx.accounts.mint.key(), amount)?;
 
     Ok(())
 }
 
-// todo: implement after we figure out how we want to store deposit info. probably in a PDA that we can first create on-chain if DNE.
-pub fn verify_deposit_for_user(asset: &Asset) -> std::result::Result<(), ProgramError> {
+pub fn verify_deposit_for_user(
+    history: &mut Account<History>,
+    asset: &Asset,
+    amount: u64,
+) -> std::result::Result<(), ProgramError> {
     match asset.user_cap {
         Some(user_cap) => {
-            msg!("implement check here");
+            history.deposit(amount)?;
+            require!(
+                history.cumulative <= user_cap,
+                ErrorCode::DepositExceedsUserCap
+            );
+
             Ok(())
-        },
+        }
         None => Ok(()),
     }
 }

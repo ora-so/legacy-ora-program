@@ -1,43 +1,76 @@
 use {
     crate::{
-        constant::VAULT_SEED,
-        context::Withdraw,
-        state::{vault::State, asset::Asset},
-        util::{transfer_with_verified_ata},
-        error::ErrorCode
+        constant::VAULT_SEED, context::Withdraw, error::ErrorCode, state::vault::State,
+        util::transfer_with_verified_ata,
     },
     anchor_lang::prelude::*,
     anchor_spl::token::{burn, Burn},
 };
 
+#[repr(C)]
+#[derive(AnchorSerialize, AnchorDeserialize, Debug, Default, PartialEq)]
+pub struct WithdrawConfig {
+    pub amount: Option<u64>,
+}
+
 /// Allow user to withdraw the amount of mint from the vault to which they are entitled.
+///
+/// todo: model out different scenarios for returns, yields and distributions. make sure is correct.
 ///
 /// feat:
 ///     - determine if withdrawal is valid (mint for vault, state of vault, etc)
 ///     - update any vault state (num withdrawals, user claimed funds, etc)
 ///     - issue receipt / burn SPL token(s) representing user's position in the vault?
+///
+/// optionally specify amount to withdraw. otherwise, default is to exchange LP tokens for underlying
+/// assets.
 pub fn handle(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
+    let num_lp_tokens_for_payer = ctx.accounts.source_lp.amount;
     ctx.accounts.vault.try_transition()?;
-    require!(ctx.accounts.vault.state == State::Withdraw, ErrorCode::InvalidVaultState);
+    require!(
+        ctx.accounts.vault.state == State::Withdraw,
+        ErrorCode::InvalidVaultState
+    );
 
-    let asset = ctx.accounts.vault.get_asset(ctx.accounts.mint.key())?;
-    require!(ctx.accounts.lp.key() == asset.lp , ErrorCode::InvalidLpMint);
+    // it is not possible to withdraw funds if they have not been redeemed
+    require!(
+        ctx.accounts.vault.alpha.received > 0 || ctx.accounts.vault.beta.received > 0,
+        ErrorCode::InvalidVaultState
+    );
 
-    // require user to withdraw all at once? can optionally change in the future?
-    let lp_amount = ctx.accounts.source_lp.amount;
-    burn(
-        ctx.accounts.into_burn_reserve_token_context(),
-        lp_amount,
-    )?;
+    let asset = ctx.accounts.vault.get_asset(&ctx.accounts.mint.key())?;
+    require!(ctx.accounts.lp.key() == asset.lp, ErrorCode::InvalidLpMint);
+    // regardless of amount requested, you cannot make a withdrawal without LP tokens
+    require!(
+        num_lp_tokens_for_payer == 0,
+        ErrorCode::CannotWithdrawWithoutLpTokens
+    );
 
-    let withdrawal_allowance = process_withdrawal_for_user(&asset, lp_amount)?;
+    let lp_amount = match amount {
+        amount if amount > 0 => amount,
+        _ => num_lp_tokens_for_payer,
+    };
+    burn(ctx.accounts.into_burn_reserve_token_context(), lp_amount)?;
+
+    // assets per lp * lp
+    let asset_per_lp =
+        (ctx.accounts.source_ata.amount / ctx.accounts.lp.supply) * ctx.accounts.source_lp.amount;
 
     let authority = ctx.accounts.authority.key();
-    let vault_signer_seeds = &[
-        VAULT_SEED.as_bytes(),
-        authority.as_ref(),
-        &[ctx.accounts.vault.bump],
-    ];
+    let vault_signer_seeds = generate_vault_seeds!(authority.as_ref(), ctx.accounts.vault.bump);
+    // &[
+    //     VAULT_SEED.as_bytes(),
+    //     authority.as_ref(),
+    //     &[ctx.accounts.vault.bump],
+    // ];
+
+    /*
+     * todo: if user has excess deposit to claim, we have two options
+     *
+     * - change this ixn to account for the extra. in this case, we can
+     *   add both instructions to a single transaction.
+     * - create a new ixn to handle the claim specifically
+     */
 
     transfer_with_verified_ata(
         ctx.accounts.source_ata.to_account_info(), // change to source
@@ -52,20 +85,10 @@ pub fn handle(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
         &[],
         ctx.accounts.vault.to_account_info(),
         vault_signer_seeds,
-        withdrawal_allowance
+        asset_per_lp,
     )?;
 
     Ok(())
-}
-
-// todo: calculate how much to allow users to withdraw based on number of LP tokens,
-// which will factor in (deposit(s) + fixed/var return). for now, just burn lp/withdraw deposits at
-// a 1-1 ratio. in the future, if a user hasn't claimed excess deposits, we'll need to factor that in as well.
-pub fn process_withdrawal_for_user(
-    asset: &Asset,
-    lp_amount: u64
-) -> std::result::Result<u64, ProgramError> {
-    Ok(lp_amount)
 }
 
 impl<'info> Withdraw<'info> {

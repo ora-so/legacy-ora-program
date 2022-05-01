@@ -1,3 +1,4 @@
+import { BN } from "@project-serum/anchor";
 import { u64 } from "@solana/spl-token";
 import {
   Connection,
@@ -8,7 +9,7 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import invariant from "tiny-invariant";
-import { ZERO_U64, MAX_BPS } from "./constant";
+import { ZERO_U64, MAX_BPS, TS_IN_MS_DIGITS } from "./constant";
 
 import { SignerInfo, ATAResult, SwapAmount } from "./types";
 
@@ -86,4 +87,23 @@ export const computeSwapAmounts = (
     amountIn: _amountIn,
     minAmountOut: _minimumAmountOut,
   };
+};
+
+export const asNumber = (n: number | u64 | BN) =>
+  typeof n === "number" ? n : n.toNumber();
+
+export const numDigits = (n: number) => n.toString().length;
+
+export const getTimestamp = (date: Date, d: number = 10): number => {
+  return +(date.getTime() / 10 ** (TS_IN_MS_DIGITS - d)).toFixed(0);
+};
+
+export const getCurrentTimestamp = (d: number = 10): number =>
+  getTimestamp(new Date(), d);
+
+// from timestamp to number
+export const toDate = (ts: number): Date => {
+  const digitCount = numDigits(ts);
+  const tsInMs = ts * 10 ** (TS_IN_MS_DIGITS - digitCount);
+  return new Date(tsInMs);
 };

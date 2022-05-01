@@ -27,9 +27,13 @@ pub fn handle(
         .lp(ctx.accounts.beta_lp.key())
         .build();
 
-    ctx.accounts
-        .vault
-        .init(vault_bump, vault_config, alpha, beta);
+    ctx.accounts.vault.init(
+        vault_bump,
+        ctx.accounts.authority.key(),
+        vault_config,
+        alpha,
+        beta,
+    );
 
     Ok(())
 }
