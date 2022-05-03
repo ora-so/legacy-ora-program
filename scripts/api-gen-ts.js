@@ -1,5 +1,5 @@
 const PROGRAM_NAME = "vault";
-const PROGRAM_ID = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS";
+const PROGRAM_ID = "56YRTVX6MNrpQgnGQbzAq7xPyeqyY9ShDrpRNkyMpUgj";
 
 const path = require("path");
 const programDir = path.join(__dirname, "..", "programs", "vault");

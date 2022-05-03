@@ -1,3 +1,1 @@
-cli usage examples
-
-ts-node ./src/bucket-cli.ts show_bucket --env devnet --keypair <path-to-keypair> --bucketId 1234
+### CLI Usage Examples

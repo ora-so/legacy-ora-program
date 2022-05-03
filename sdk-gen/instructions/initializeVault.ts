@@ -135,7 +135,7 @@ export function createInitializeVaultInstruction(
 
   const ix = new web3.TransactionInstruction({
     programId: new web3.PublicKey(
-      "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+      "56YRTVX6MNrpQgnGQbzAq7xPyeqyY9ShDrpRNkyMpUgj"
     ),
     keys,
     data,

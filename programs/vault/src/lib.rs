@@ -13,7 +13,7 @@ mod util;
 use context::*;
 use state::vault::VaultConfig;
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("56YRTVX6MNrpQgnGQbzAq7xPyeqyY9ShDrpRNkyMpUgj");
 
 #[program]
 pub mod vault {

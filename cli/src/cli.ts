@@ -19,6 +19,7 @@ import {
   VaultConfig,
   addSeconds,
   getOrDefault,
+  getCurrentTimestamp,
 } from "@ora-protocol/sdk";
 // import { printParsedTokenAccount } from "../../sdk/src/common/types";
 
@@ -31,6 +32,22 @@ export const DEFAULT_PERIOD_IN_SECONDS = 1 * 24 * 60 * 60;
 // ============================================================================
 // show account data commands
 // ============================================================================
+
+programCommand("ts", false)
+  .option(
+    "-o, --offset <number>",
+    "Optional offset from current timestamp. In seconds."
+  )
+  .action(async (_, cmd) => {
+    const { offset } = cmd.opts();
+
+    let date = new Date();
+    if (offset) {
+      date = addSeconds(date, +offset);
+    }
+
+    console.log("Timestamp (with optional offset): ", date.getTime());
+  });
 
 programCommand("derive_vault")
   .option("-a, --authority <pubkey>", "Authority of the vault")
@@ -63,7 +80,7 @@ programCommand("init_vault")
   .option("-ba, --beta <pubkey>", "Mint of the vault's beta asset")
   .option(
     "-fr, --fixedRate <number>",
-    "Fixed rate the senior tranche is guaranteed to recieve"
+    "Fixed rate the senior tranche is guaranteed to recieve, in basis points."
   )
   .option(
     "-sa, --startAt <number>",
@@ -243,8 +260,8 @@ programCommand("mint")
   });
 
 programCommand("mint_to")
-  .option("-m, --mint <string>", "Address of the token's mint")
-  .option("-t, --to <number>", "Address to which we should mint tokens")
+  .option("-m, --mint <pubkey>", "Address of the token's mint")
+  .option("-t, --to <pubkey>", "Address to which we should mint tokens")
   .option(
     "-a, --amount <number>",
     "Amount of tokens to mint. Will not adjust for decimals."
@@ -281,19 +298,24 @@ programCommand("mint_to")
 // helper commands
 // ============================================================================
 
-function programCommand(name: string) {
-  return program
-    .command(name)
-    .option(
-      "-e, --env <string>",
-      "Solana cluster env name",
-      "devnet" // mainnet-beta, testnet, devnet
-    )
-    .option(
-      "-k, --keypair <path>",
-      `Solana wallet location`,
-      "--keypair not provided"
-    );
+function programCommand(name: string, defaultOptions: boolean = true) {
+  const executable = program.command(name);
+
+  if (defaultOptions) {
+    executable
+      .option(
+        "-e, --env <string>",
+        "Solana cluster env name",
+        "devnet" // mainnet-beta, testnet, devnet
+      )
+      .option(
+        "-k, --keypair <path>",
+        `Solana wallet location`,
+        "--keypair not provided"
+      );
+  }
+
+  return executable;
 }
 
 const createClient = (cluster: Cluster, keypair: Keypair) => {

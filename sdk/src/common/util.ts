@@ -129,8 +129,9 @@ export const addMinutes = (date: Date, minutes: number) => {
 };
 
 export const addSeconds = (date: Date, seconds: number) => {
-  date.setTime(date.getTime() + seconds * 1000);
-  return date;
+  const newDate = new Date(date);
+  newDate.setTime(newDate.getTime() + seconds * 1000);
+  return newDate;
 };
 
 export const spinUntil = async (
