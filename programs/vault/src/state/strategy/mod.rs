@@ -9,8 +9,6 @@ use {
     borsh::{BorshDeserialize, BorshSerialize},
     core::mem::size_of,
     enumflags2::BitFlags,
-    std::cell::RefMut,
-    std::ops::{Deref, DerefMut},
 };
 
 use saber::SaberLpStrategyV0;

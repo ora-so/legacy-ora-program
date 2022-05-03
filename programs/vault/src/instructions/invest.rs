@@ -73,16 +73,3 @@ pub fn verify_investable_amount(
 
     Ok(())
 }
-
-/**
- * dev: determine how many tokens can be deposited. right now, assume
- * 1-1 ratio between token value. eventually, need oracles to figure out the ratio.
- * maybe we can roughly store this amount on the asset as well.
- *
- * todo item
- */
-pub fn calculate_investable_amount(alpha_amount: u64, beta_amount: u64) -> (u64, u64) {
-    let investable_amount = min(alpha_amount, beta_amount);
-
-    return (investable_amount, investable_amount);
-}

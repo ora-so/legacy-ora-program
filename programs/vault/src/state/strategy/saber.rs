@@ -3,8 +3,8 @@ use {
         constant::VAULT_SEED,
         context::{Invest, Redeem},
         error::ErrorCode,
-        state::{asset::Asset, strategy::StrategyActions, vault::Vault},
-        util::{assert_is_ata, create_ata_if_dne, with_slippage},
+        state::strategy::StrategyActions,
+        util::{assert_is_ata, create_ata_if_dne},
     },
     anchor_lang::prelude::*,
     anchor_spl::token::TokenAccount,
@@ -12,7 +12,6 @@ use {
     bytemuck::{Pod, Zeroable},
     solana_program::borsh::try_from_slice_unchecked,
     stable_swap_anchor::{Deposit, SwapOutput, SwapToken, SwapUserContext, Withdraw},
-    std::cmp::min,
 };
 
 pub fn balance_difference(
@@ -71,15 +70,14 @@ pub struct SaberLpStrategyV0 {
     // todo: add slippaage guardrails in swaps?
 }
 
-// dev: probably need to pass in some shared context so that we can pull balances off ATAs and what not
 // todo: make sure all accounts are validated?
 impl StrategyActions for SaberLpStrategyV0 {
     /**
-     * @dev Given the total available amounts of senior and junior assets.
-     *      invest as much as possible and record any excess uninvested
-     *      assets.
+     * Given the total available amounts of senior and junior assets. We will invest as much as
+     * possible and record any uninvested assets.
      *
-     * invest amount_a and amount_b
+     * @dev Because this functionality is can only be invoked by a particular keypair, we allow
+     *      to decide how much of each asset is invested.
      */
     fn invest(
         &self,
@@ -88,24 +86,17 @@ impl StrategyActions for SaberLpStrategyV0 {
         amount_b: u64,
         min_out: u64,
     ) -> ProgramResult {
-        // temp: take in directly from caller
-        // let min_mint_amount = with_slippage(
-        //     amount_a.checked_add(amount_b).ok_or_else(math_error!())?,
-        //     slippage_tolerance,
-        // )?;
-
         create_and_verify_ata_for_invest(&ctx)?;
 
-        let authority = *ctx.accounts.authority.key;
-        // invest tokens from vault ATA to saber pool. recieve LP tokens in a vault ATA.
+        let vault_signer_seeds = generate_vault_seeds!(
+            *ctx.accounts.authority.key.as_ref(),
+            ctx.accounts.vault.bump
+        );
+
         stable_swap_anchor::deposit(
             ctx.accounts
                 .into_saber_swap_invest_context()
-                .with_signer(&[&[
-                    VAULT_SEED.as_bytes(),
-                    authority.as_ref(),
-                    &[ctx.accounts.vault.bump],
-                ]]),
+                .with_signer(&[vault_signer_seeds]),
             amount_a,
             amount_b,
             min_out,
@@ -115,20 +106,16 @@ impl StrategyActions for SaberLpStrategyV0 {
     }
 
     /**
-     * @dev Convert all LP tokens back into the pair of underlying.
-     *      Initially, we will equally redeem underlying assets in
-     *      equal quantities based on USD value. The senior tranche
-     *      is expecting to get paid some hurdle rate above the
-     *      principal. Here are the possible outcomes:
+     * Convert all LP tokens back into the pair of underlying. Initially, we will equally redeem
+     * underlying assets in equal quantities based on USD value. The senior tranche is expecting
+     * to get paid some hurdle rate above the principal. Here are the possible outcomes:
      *
-     *      - Senior tranche doesn't have enough: sell some or all
-     *        junior tranche assets to make teh senior tranche whole.
-     *        In the worst case, the senior tranche could suffer
-     *        a loss and the junior tranche will be wiped out.
+     *   - Senior tranche doesn't have enough: sell some or all junior tranche assets to make the
+     *     senior tranche whole. In the worst case, the senior tranche could suffer a loss and the
+     *     junior tranche will be wiped out.
      *
-     *      - If the senior tranche has more than enough, reduce this tranche
-     *        to the expected payoff. The excess senior tokens should be
-     *        converted to junior tokens.
+     *   - If the senior tranche has more than enough, reduce this tranche to the expected payoff.
+     *     The excess senior tokens should be converted to junior tokens.
      *
      * https://github.com/ondoprotocol/ondo-protocol/blob/main/contracts/strategies/UniswapStrategy.sol#L301
      */
@@ -148,15 +135,15 @@ impl StrategyActions for SaberLpStrategyV0 {
 
         // transfer LP tokens from vault ATA in exchange for some ratio of tokens the specified saber pool.
         // https://github.com/Uniswap/v2-periphery/blob/dda62473e2da448bc9cb8f4514dadda4aeede5f4/contracts/UniswapV2Router02.sol#L103
-        let authority = ctx.accounts.authority.key();
+        let vault_signer_seeds = generate_vault_seeds!(
+            *ctx.accounts.authority.key.as_ref(),
+            ctx.accounts.vault.bump
+        );
+
         stable_swap_anchor::withdraw(
             ctx.accounts
                 .into_saber_swap_redeem_context()
-                .with_signer(&[&[
-                    VAULT_SEED.as_bytes(),
-                    authority.as_ref(),
-                    &[ctx.accounts.vault.bump],
-                ]]),
+                .with_signer(&[vault_signer_seeds]),
             ctx.accounts.saber_withdraw.input_lp.amount,
             0,
             0,
@@ -166,6 +153,7 @@ impl StrategyActions for SaberLpStrategyV0 {
             &mut ctx.accounts.saber_withdraw.saber_swap_common.source_token_a,
             min_token_a,
         )?;
+
         ctx.accounts.vault.update_receipt(
             &ctx.accounts
                 .saber_withdraw
@@ -199,7 +187,6 @@ impl StrategyActions for SaberLpStrategyV0 {
     // other trait function implementations here
 }
 
-// todo: figure out where to init a strategy object
 impl SaberLpStrategyV0 {
     pub fn init(
         &mut self,

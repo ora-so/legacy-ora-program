@@ -22,6 +22,9 @@ use {
 /// @dev in order to prevent failed deposits, we could optionally pass in a few posible receipts,
 ///      at current index + m, where m is some whole integer
 ///
+/// @dev we check deposit index matches the value on the vault after incrementing because
+///      the index starts at 0 and reflects the number of deposits so far.
+///
 /// @dev the following does not hold true because of Anchor context - the current
 ///      structure requires ATAs to already exist.
 ///
@@ -31,18 +34,21 @@ use {
 ///
 pub fn handle(
     ctx: Context<Deposit>,
+    deposit_index: u64,
     receipt_bump: u8,
     history_bump: u8,
     amount: u64,
 ) -> ProgramResult {
+    let mint_key = &ctx.accounts.mint.key();
+
     ctx.accounts.vault.try_transition()?;
+    msg!("state: {:?}", ctx.accounts.vault.state);
     require!(
         ctx.accounts.vault.state == State::Deposit,
         ErrorCode::InvalidVaultState
     );
 
-    let asset = ctx.accounts.vault.get_asset(&ctx.accounts.mint.key())?;
-    require!(ctx.accounts.lp.key() == asset.lp, ErrorCode::InvalidLpMint);
+    let asset = ctx.accounts.vault.get_asset(mint_key)?;
 
     ctx.accounts.history.init_if_needed(history_bump);
     ctx.accounts.receipt.init(
@@ -70,9 +76,15 @@ pub fn handle(
         amount,
     )?;
 
-    ctx.accounts
-        .vault
-        .update_deposit(&ctx.accounts.mint.key(), amount)?;
+    ctx.accounts.vault.update_deposit(mint_key, amount)?;
+
+    // this makes sure the number of deposits on the vault's asset matches the seed
+    // used to derive the PDA address. If it's not equal, the caller tried to move
+    // forward or backwards in the deposit sequence.
+    require!(
+        deposit_index == ctx.accounts.vault.get_deposits_for(mint_key)?,
+        ErrorCode::InvalidDepositForVault
+    );
 
     Ok(())
 }

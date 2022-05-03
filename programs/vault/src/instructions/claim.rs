@@ -40,7 +40,7 @@ pub fn handle(ctx: Context<Claim>) -> ProgramResult {
             ctx.accounts.rent.to_account_info(),
             &[],
             ctx.accounts.vault.to_account_info(),
-            vault_signer_seeds,
+            vault_signer_seeds, // todo: does this work?
             claim_amount,
         )?;
     }
@@ -58,7 +58,7 @@ pub fn handle(ctx: Context<Claim>) -> ProgramResult {
             ctx.accounts.rent.to_account_info(),
             &[],
             ctx.accounts.vault.to_account_info(),
-            vault_seeds,
+            vault_signer_seeds,
             lp_amount, // 1-1 asset to LP amount
         )?;
     }

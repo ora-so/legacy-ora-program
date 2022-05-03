@@ -291,7 +291,22 @@ pub fn mint_with_verified_ata<'info>(
     Ok(())
 }
 
-// assuming slippage is in basis points, 10_000 is max amount
+/**
+ * Calculate amount after slippage in basis points, 10_000 is upper bound.
+ *
+ * Sample usage:
+ *
+ * let total = 100_000;
+ * let slippage_tolerance = 100; // 100 bips, 1%
+ *
+ * let result = with_slippage(
+ *   100_000,
+ *   slippage_tolerance,
+ * )?;
+ *
+ * require!(result == 99_000, "oh no");
+ *
+ */
 pub fn with_slippage(amount: u64, slippage: u16) -> std::result::Result<u64, ProgramError> {
     let total = 10_000_usize;
     let slippage_inverse = total

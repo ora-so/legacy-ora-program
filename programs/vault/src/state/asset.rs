@@ -11,7 +11,7 @@ pub struct Asset {
     pub asset_cap: Option<u64>,
     /// cap on any user's deposits
     pub user_cap: Option<u64>,
-    /// number of independent deposits made into vualt
+    /// number of independent deposits made into vault.
     pub deposits: u64,
     /// amount deposited
     pub deposited: u64,

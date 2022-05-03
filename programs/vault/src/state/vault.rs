@@ -1,6 +1,7 @@
 use {
     crate::{error::ErrorCode, state::asset::Asset, util::get_current_timestamp},
     anchor_lang::prelude::*,
+    std::result::Result,
 };
 
 #[repr(C)]
@@ -87,7 +88,7 @@ impl Vault {
         self.redeem_at = config.redeem_at;
         self.state = State::Inactive;
 
-        // excess related metadata
+        // excess related metadata; value set at time of investment
         self.excess = None;
         self.claims_processed = false;
         self.claims_idx = None;
@@ -140,7 +141,11 @@ impl Vault {
         }
     }
 
-    pub fn get_asset(&self, mint: &Pubkey) -> std::result::Result<Asset, ProgramError> {
+    pub fn get_deposits_for(&self, mint: &Pubkey) -> Result<u64, ProgramError> {
+        Ok(self.get_asset(mint)?.deposits)
+    }
+
+    pub fn get_asset(&self, mint: &Pubkey) -> Result<Asset, ProgramError> {
         let asset = match *mint {
             m if self.alpha.mint == m => self.alpha,
             m if self.beta.mint == m => self.beta,
@@ -150,10 +155,7 @@ impl Vault {
         Ok(asset)
     }
 
-    pub fn get_asset_mut<'a>(
-        &'a mut self,
-        mint: &Pubkey,
-    ) -> std::result::Result<&'a mut Asset, ProgramError> {
+    pub fn get_asset_mut<'a>(&'a mut self, mint: &Pubkey) -> Result<&'a mut Asset, ProgramError> {
         let asset = match *mint {
             m if self.alpha.mint == m => &mut self.alpha,
             m if self.beta.mint == m => &mut self.beta,
@@ -189,6 +191,9 @@ impl Vault {
             );
 
             self.excess = Some(*mint);
+        } else {
+            // rare case that we have no excess investments. no need to process claims.
+            self.finalize_claims();
         }
 
         Ok(())

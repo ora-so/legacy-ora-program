@@ -11,10 +11,24 @@ import {
   SYSVAR_RENT_PUBKEY,
   TransactionInstruction,
   Connection,
+  Cluster,
 } from "@solana/web3.js";
+import {
+  TokenListProvider,
+  TokenListContainer,
+  TokenInfo,
+} from "@solana/spl-token-registry";
 
 import { ATAResult, ATAsResult } from "./types";
 import { ZERO_U64 } from "./constant";
+
+export type PubKeyString = PublicKey | string;
+
+export const asString = (mint: PubKeyString) =>
+  typeof mint === "string" ? mint : mint.toBase58();
+
+export const asStrings = (mints: PubKeyString[]) =>
+  mints.map((mint) => asString(mint));
 
 export const findAssociatedTokenAddress = async (
   owner: PublicKey,
@@ -170,4 +184,69 @@ export const mintTokens = async (
       )
     ),
   ];
+};
+
+export class TokenProvider {
+  tokenListContainer: TokenListContainer;
+  tokenMap: Map<Cluster, Map<string, TokenInfo>>;
+
+  constructor() {
+    new TokenListProvider().resolve().then((container) => {
+      this.tokenListContainer = container;
+      this.tokenMap = new Map();
+    });
+  }
+
+  _saturateMap = (cluster: Cluster) => {
+    // new map for cluster
+    if (!this.tokenMap.has(cluster)) this.tokenMap.set(cluster, new Map());
+
+    // get cluster, we know it exists because we just created if DNE before
+    const tokensForCluster = this.tokenMap.get(cluster)!;
+
+    // tokens already populated, return early
+    if (tokensForCluster.size > 0) return;
+
+    // saturate map
+    const tokenInfos: TokenInfo[] = this.tokenListContainer
+      .filterByClusterSlug(cluster)
+      .getList();
+
+    tokenInfos.forEach((tokenInfo) => {
+      tokensForCluster.set(tokenInfo.address, tokenInfo);
+    });
+  };
+
+  fetchTokens = (
+    mints: PublicKey[] | string[],
+    cluster: Cluster = "mainnet-beta"
+  ): TokenInfo[] => {
+    if (mints.length === 0) return [];
+
+    const _mints: string[] =
+      typeof mints[0] === "string"
+        ? (mints as string[])
+        : (mints as PublicKey[]).map((mint) => mint.toBase58());
+
+    this._saturateMap(cluster);
+
+    const tokensForCluster = this.tokenMap.get(cluster)!;
+    return _mints
+      .map((_mint) => tokensForCluster.get(_mint))
+      .filter(isTokenInfo);
+  };
+
+  fetchSymbols = (
+    mints: PublicKey[] | string[],
+    cluster: Cluster = "mainnet-beta"
+  ): string[] => {
+    return this.fetchTokens(mints, cluster).map((token) => token.symbol);
+  };
+}
+
+// https://www.benmvp.com/blog/filtering-undefined-elements-from-array-typescript/
+const isTokenInfo = (
+  tokenInfo: TokenInfo | undefined
+): tokenInfo is TokenInfo => {
+  return !!tokenInfo;
 };

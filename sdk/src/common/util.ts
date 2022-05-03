@@ -89,6 +89,12 @@ export const computeSwapAmounts = (
   };
 };
 
+export function getOrDefault<T>(t: T | undefined | null, def: T) {
+  return t ? t : def;
+}
+
+export const toU64 = (n: number) => new u64(n);
+
 export const asNumber = (n: number | u64 | BN) =>
   typeof n === "number" ? n : n.toNumber();
 
@@ -106,4 +112,44 @@ export const toDate = (ts: number): Date => {
   const digitCount = numDigits(ts);
   const tsInMs = ts * 10 ** (TS_IN_MS_DIGITS - digitCount);
   return new Date(tsInMs);
+};
+
+export const withSlippage = (amount: number, slippage: number) => {
+  const bpsMax = 10_000;
+  return ((bpsMax - slippage) / bpsMax) * amount;
+};
+
+export const sleep = (ms: number) => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+export const addMinutes = (date: Date, minutes: number) => {
+  date.setTime(date.getTime() + minutes * 60 * 1000);
+  return date;
+};
+
+export const addSeconds = (date: Date, seconds: number) => {
+  date.setTime(date.getTime() + seconds * 1000);
+  return date;
+};
+
+export const spinUntil = async (
+  until: number,
+  sleepTimeoutInSeconds: number = 3,
+  verbose: boolean = false
+) => {
+  let currentTimestamp = getCurrentTimestamp();
+
+  for (;;) {
+    if (verbose) {
+      console.log(`Sleeping ${sleepTimeoutInSeconds} seconds`);
+    }
+    await sleep(sleepTimeoutInSeconds * 1000); // sleep for 3 seconds at a time, until auction is over
+    if (currentTimestamp >= until) {
+      break;
+    }
+    currentTimestamp = new Date().getTime() / 1000;
+  }
+
+  return;
 };

@@ -31,6 +31,8 @@ pub enum ErrorCode {
     MissingTransitionAtTimeForState,
     #[msg("Vault has no deposits")]
     VaultHasNoDeposits,
+    #[msg("Invalid deposit for vault")]
+    InvalidDepositForVault,
 
     #[msg("Wrong account owner")]
     WrongAccountOwner,

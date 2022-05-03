@@ -124,13 +124,18 @@ export type Vault = {
           "isSigner": false
         },
         {
-          "name": "mint",
-          "isMut": false,
+          "name": "receipt",
+          "isMut": true,
           "isSigner": false
         },
         {
-          "name": "lp",
+          "name": "history",
           "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
           "isSigner": false
         },
         {
@@ -140,11 +145,6 @@ export type Vault = {
         },
         {
           "name": "destinationAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "lpAta",
           "isMut": true,
           "isSigner": false
         },
@@ -171,10 +171,93 @@ export type Vault = {
       ],
       "args": [
         {
+          "name": "depositIndex",
+          "type": "u64"
+        },
+        {
+          "name": "receiptBump",
+          "type": "u8"
+        },
+        {
+          "name": "historyBump",
+          "type": "u8"
+        },
+        {
           "name": "amount",
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "claim",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "history",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "lp",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationLpAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "ataProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
     },
     {
       "name": "withdraw",
@@ -348,10 +431,39 @@ export type Vault = {
       ],
       "args": [
         {
-          "name": "slippageTolerance",
-          "type": "u16"
+          "name": "investableA",
+          "type": "u64"
+        },
+        {
+          "name": "investableB",
+          "type": "u64"
+        },
+        {
+          "name": "minTokensBack",
+          "type": "u64"
         }
       ]
+    },
+    {
+      "name": "processClaims",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
     },
     {
       "name": "redeem",
@@ -476,6 +588,62 @@ export type Vault = {
   ],
   "accounts": [
     {
+      "name": "history",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "intialized",
+            "type": "bool"
+          },
+          {
+            "name": "deposits",
+            "type": "u64"
+          },
+          {
+            "name": "cumulative",
+            "type": "u64"
+          },
+          {
+            "name": "claim",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "receipt",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "intialized",
+            "type": "bool"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "cumulative",
+            "type": "u64"
+          },
+          {
+            "name": "depositor",
+            "type": "publicKey"
+          }
+        ]
+      }
+    },
+    {
       "name": "saberLpStrategyV0",
       "type": {
         "kind": "struct",
@@ -553,6 +721,22 @@ export type Vault = {
           {
             "name": "redeemAt",
             "type": "u64"
+          },
+          {
+            "name": "excess",
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "claimsProcessed",
+            "type": "bool"
+          },
+          {
+            "name": "claimsIdx",
+            "type": {
+              "option": "u64"
+            }
           }
         ]
       }
@@ -583,6 +767,10 @@ export type Vault = {
             "type": {
               "option": "u64"
             }
+          },
+          {
+            "name": "deposits",
+            "type": "u64"
           },
           {
             "name": "deposited",
@@ -659,7 +847,13 @@ export type Vault = {
         "kind": "enum",
         "variants": [
           {
+            "name": "MathError"
+          },
+          {
             "name": "PublicKeyMismatch"
+          },
+          {
+            "name": "BumpMismatch"
           },
           {
             "name": "InvalidMintAuthority"
@@ -674,10 +868,7 @@ export type Vault = {
             "name": "PublicKeysShouldBeUnique"
           },
           {
-            "name": "StatementFalse"
-          },
-          {
-            "name": "MathError"
+            "name": "AccountAlreadyInitialized"
           },
           {
             "name": "InsufficientTokenBalance"
@@ -690,6 +881,12 @@ export type Vault = {
           },
           {
             "name": "MissingTransitionAtTimeForState"
+          },
+          {
+            "name": "VaultHasNoDeposits"
+          },
+          {
+            "name": "InvalidDepositForVault"
           },
           {
             "name": "WrongAccountOwner"
@@ -713,10 +910,22 @@ export type Vault = {
             "name": "InvalidLpMint"
           },
           {
+            "name": "DepositExceedsUserCap"
+          },
+          {
+            "name": "DepositExceedsAssetCap"
+          },
+          {
+            "name": "CannotWithdrawWithoutLpTokens"
+          },
+          {
             "name": "DataTypeMismatch"
           },
           {
             "name": "SlippageTooHigh"
+          },
+          {
+            "name": "DualSidedExcesssNotPossible"
           }
         ]
       }
@@ -914,13 +1123,18 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
-          "name": "mint",
-          "isMut": false,
+          "name": "receipt",
+          "isMut": true,
           "isSigner": false
         },
         {
-          "name": "lp",
+          "name": "history",
           "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
           "isSigner": false
         },
         {
@@ -930,11 +1144,6 @@ export const IDL: Vault = {
         },
         {
           "name": "destinationAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "lpAta",
           "isMut": true,
           "isSigner": false
         },
@@ -961,10 +1170,93 @@ export const IDL: Vault = {
       ],
       "args": [
         {
+          "name": "depositIndex",
+          "type": "u64"
+        },
+        {
+          "name": "receiptBump",
+          "type": "u8"
+        },
+        {
+          "name": "historyBump",
+          "type": "u8"
+        },
+        {
           "name": "amount",
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "claim",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "history",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "lp",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationLpAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "ataProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
     },
     {
       "name": "withdraw",
@@ -1138,10 +1430,39 @@ export const IDL: Vault = {
       ],
       "args": [
         {
-          "name": "slippageTolerance",
-          "type": "u16"
+          "name": "investableA",
+          "type": "u64"
+        },
+        {
+          "name": "investableB",
+          "type": "u64"
+        },
+        {
+          "name": "minTokensBack",
+          "type": "u64"
         }
       ]
+    },
+    {
+      "name": "processClaims",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
     },
     {
       "name": "redeem",
@@ -1266,6 +1587,62 @@ export const IDL: Vault = {
   ],
   "accounts": [
     {
+      "name": "history",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "intialized",
+            "type": "bool"
+          },
+          {
+            "name": "deposits",
+            "type": "u64"
+          },
+          {
+            "name": "cumulative",
+            "type": "u64"
+          },
+          {
+            "name": "claim",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "receipt",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "intialized",
+            "type": "bool"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "cumulative",
+            "type": "u64"
+          },
+          {
+            "name": "depositor",
+            "type": "publicKey"
+          }
+        ]
+      }
+    },
+    {
       "name": "saberLpStrategyV0",
       "type": {
         "kind": "struct",
@@ -1343,6 +1720,22 @@ export const IDL: Vault = {
           {
             "name": "redeemAt",
             "type": "u64"
+          },
+          {
+            "name": "excess",
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "claimsProcessed",
+            "type": "bool"
+          },
+          {
+            "name": "claimsIdx",
+            "type": {
+              "option": "u64"
+            }
           }
         ]
       }
@@ -1373,6 +1766,10 @@ export const IDL: Vault = {
             "type": {
               "option": "u64"
             }
+          },
+          {
+            "name": "deposits",
+            "type": "u64"
           },
           {
             "name": "deposited",
@@ -1449,7 +1846,13 @@ export const IDL: Vault = {
         "kind": "enum",
         "variants": [
           {
+            "name": "MathError"
+          },
+          {
             "name": "PublicKeyMismatch"
+          },
+          {
+            "name": "BumpMismatch"
           },
           {
             "name": "InvalidMintAuthority"
@@ -1464,10 +1867,7 @@ export const IDL: Vault = {
             "name": "PublicKeysShouldBeUnique"
           },
           {
-            "name": "StatementFalse"
-          },
-          {
-            "name": "MathError"
+            "name": "AccountAlreadyInitialized"
           },
           {
             "name": "InsufficientTokenBalance"
@@ -1480,6 +1880,12 @@ export const IDL: Vault = {
           },
           {
             "name": "MissingTransitionAtTimeForState"
+          },
+          {
+            "name": "VaultHasNoDeposits"
+          },
+          {
+            "name": "InvalidDepositForVault"
           },
           {
             "name": "WrongAccountOwner"
@@ -1503,10 +1909,22 @@ export const IDL: Vault = {
             "name": "InvalidLpMint"
           },
           {
+            "name": "DepositExceedsUserCap"
+          },
+          {
+            "name": "DepositExceedsAssetCap"
+          },
+          {
+            "name": "CannotWithdrawWithoutLpTokens"
+          },
+          {
             "name": "DataTypeMismatch"
           },
           {
             "name": "SlippageTooHigh"
+          },
+          {
+            "name": "DualSidedExcesssNotPossible"
           }
         ]
       }

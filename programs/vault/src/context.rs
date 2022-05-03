@@ -2,7 +2,10 @@ use {
     crate::{
         constant::{HISTORY_SEED, RECEIPT_SEED, STRATEGY_SEED, VAULT_SEED},
         state::{
-            deposit::{history::History, receipt::Receipt},
+            deposit::{
+                history::{History, HISTORY_SIZE},
+                receipt::{Receipt, RECEIPT_SIZE},
+            },
             strategy::saber::{SaberLpStrategyV0, SABER_STRATEGY_SIZE},
             vault::Vault,
         },
@@ -116,7 +119,7 @@ pub struct Deposit<'info> {
     pub vault: Box<Account<'info, Vault>>,
 
     #[account(
-        init_if_needed,
+        init,
         seeds = [
             RECEIPT_SEED.as_bytes(),
             vault.key().to_bytes().as_ref(),
@@ -125,7 +128,7 @@ pub struct Deposit<'info> {
         ],
         bump,
         payer = payer,
-        space = size_of::<Receipt>(),
+        space = RECEIPT_SIZE
     )]
     pub receipt: Box<Account<'info, Receipt>>,
 
@@ -139,14 +142,11 @@ pub struct Deposit<'info> {
         ],
         bump,
         payer = payer,
-        space = size_of::<History>(),
+        space = HISTORY_SIZE
     )]
     pub history: Box<Account<'info, History>>,
 
     pub mint: Box<Account<'info, Mint>>,
-
-    #[account(mut)]
-    pub lp: Box<Account<'info, Mint>>,
 
     #[account(
         mut,
@@ -160,10 +160,6 @@ pub struct Deposit<'info> {
     #[account(mut)]
     pub destination_ata: AccountInfo<'info>,
 
-    /// CHECK: create and validate JIT in instruction
-    #[account(mut)]
-    pub lp_ata: AccountInfo<'info>,
-
     /// =============== PROGRAM ACCOUNTS ===============
     pub system_program: Program<'info, System>,
 
@@ -176,6 +172,7 @@ pub struct Deposit<'info> {
     pub rent: Sysvar<'info, Rent>,
 }
 
+// todo: who can be signer here?
 #[derive(Accounts)]
 #[instruction(deposit_index: u64)]
 pub struct Claim<'info> {

@@ -54,12 +54,12 @@ pub mod vault {
      */
     pub fn deposit(
         ctx: Context<Deposit>,
-        _deposit_index: u64,
+        deposit_index: u64,
         receipt_bump: u8,
         history_bump: u8,
         amount: u64,
     ) -> ProgramResult {
-        instructions::deposit::handle(ctx, receipt_bump, history_bump, amount)?;
+        instructions::deposit::handle(ctx, deposit_index, receipt_bump, history_bump, amount)?;
 
         Ok(())
     }
@@ -160,3 +160,59 @@ pub mod vault {
     // perform swap = based on fixed rate
     // pub fn swap(ctx: Context<Swap>, expected_a: u64) -> ProgramResult {}
 }
+
+// [] new entity to sign for process claim related functionality
+// [] add assertion checks in tests
+// [] create a wrapper class for test logic
+
+/**
+ * tests
+ *
+ * - init saber strategy
+ * - init vault
+ *
+ * - deposit
+ *   - try to deposit before active
+ *   - deposit past user cap
+ *   - deposit past asset cap
+ *   - deposit a bunch and check num deposits match
+ *   - deposit mint that doesn't exist on vault
+ *   - deposit ix with lp mint that doesn't match what's expected
+ *   - try to make a deposit at an index that already exists
+ *
+ * - invest
+ *   - try to invest before invest period
+ *   - invest where no imbalance in deposits
+ *
+ * - process claims 👀
+ *   - try to process before invest happens
+ *
+ * - redeem
+ *    - try to redeem before time to do so
+ *    - try to redeem with a slippage that fails checks
+ *    - success
+ *
+ * - claim
+ *   - try to claim before claims processed
+ *   - try to claim with no lp tokens
+ *   - try to claim with mint that doesn't exist on vault
+ *   - try to
+ *   - try to claim ix with lp mint that doesn't match what's expected
+ *
+ * - withdraw (verify lp tokens burned)
+ *   - try to withdraw before redeeed
+ *   - withdraw without any lp tokens
+ *   - withdraw while amount = 0
+ *   - withdraw while amount > 0
+ *   - can claim right before withdrawal?
+ *
+ */
+pub fn docs() -> u64 {
+    return 0;
+}
+
+// lifecycle
+// same mints for all tokens, since tied to underlying saber pools?
+
+// create vault with all the attributes
+// deposit

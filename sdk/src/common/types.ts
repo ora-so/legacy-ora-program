@@ -1,7 +1,7 @@
 import { u64 } from "@solana/spl-token";
 import { Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
 
-export interface DepositConfig {
+export interface InvestConfig {
   tokenAmountA: number;
   tokenAmountB: number;
   minMintAmount: number;
@@ -16,7 +16,7 @@ export interface WithdrawConfig {
 export interface PoolConfig {
   tokenA: PublicKey;
   tokenB: PublicKey;
-  depositConfig?: DepositConfig;
+  investConfig?: InvestConfig;
   withdrawConfig?: WithdrawConfig;
   swapAccount?: PublicKey;
 }

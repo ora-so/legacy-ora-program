@@ -1,5 +1,7 @@
 use {crate::error::ErrorCode, anchor_lang::prelude::*, std::result::Result};
 
+pub const HISTORY_SIZE: usize = 8 + 1 + 1 + 8 + 8 + 8;
+
 /**
  * Account to track user deposit metadata for any given vault's tranche.
  *
@@ -18,7 +20,7 @@ pub struct History {
     pub intialized: bool,
     /// count of unique deposits by user
     pub deposits: u64,
-    /// cumulative amount deposited for the alpha asset
+    /// cumulative amount deposited for the asset
     pub cumulative: u64,
     /// amount user has right to claim due to an excess deposit. the asset
     /// to be claimed is stored on the vault itself.

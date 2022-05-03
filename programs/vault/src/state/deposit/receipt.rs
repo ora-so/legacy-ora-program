@@ -1,5 +1,7 @@
 use {crate::error::ErrorCode, anchor_lang::prelude::*};
 
+pub const RECEIPT_SIZE: usize = 8 + 1 + 1 + 8 + 8 + 32;
+
 /**
  * A receipt is created for a deposit such that we can keep track of who
  * made deposits and related vault state at that time. This information

@@ -20,61 +20,23 @@ import {
   asNumber,
   getCurrentTimestamp,
   toDate,
-} from "../sdk";
+} from "../sdk/dist/cjs";
 import { assertKeysEqual } from "./common/util";
+
+// toU64,
+
+import {
+  VaultTestClient,
+  InitVaultConfig,
+  DepositConfig,
+  InvestConfig,
+} from "./test-client";
 
 import {
   setupPoolInitialization,
   FEES,
   AMP_FACTOR,
 } from "./helpers/saber/pool";
-
-const second_in_ms = 1000 * 1;
-const min_in_ms = second_in_ms * 60;
-const hour_in_ms = min_in_ms * 60;
-const day_in_ms = hour_in_ms * 24;
-
-// write an Asset wrapper
-
-export const withSlippage = (amount: number, slippage: number) => {
-  const bpsMax = 10_000;
-  return ((bpsMax - slippage) / bpsMax) * amount;
-};
-
-export const sleep = (ms: number) => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-};
-
-export const addMinutes = (date: Date, minutes: number) => {
-  date.setTime(date.getTime() + minutes * 60 * 1000);
-  return date;
-};
-
-export const addSeconds = (date: Date, seconds: number) => {
-  date.setTime(date.getTime() + seconds * 1000);
-  return date;
-};
-
-export const spinUntil = async (
-  until: number,
-  sleepTimeoutInSeconds: number = 3,
-  verbose: boolean = false
-) => {
-  let currentTimestamp = getCurrentTimestamp();
-
-  for (;;) {
-    if (verbose) {
-      console.log(`Sleeping ${sleepTimeoutInSeconds} seconds`);
-    }
-    await sleep(sleepTimeoutInSeconds * 1000); // sleep for 3 seconds at a time, until auction is over
-    if (currentTimestamp >= until) {
-      break;
-    }
-    currentTimestamp = new Date().getTime() / 1000;
-  }
-
-  return;
-};
 
 describe("vault", () => {
   const _provider = anchor.Provider.env();
@@ -84,10 +46,15 @@ describe("vault", () => {
     _provider.wallet as anchor.Wallet
   );
 
+  const testClient = new VaultTestClient();
+
   let authority: Keypair;
+  let user1: Keypair;
 
   let collateralA: Keypair;
   let collateralB: Keypair;
+  // act as unauthorized collateral
+  let collateralC: Keypair;
 
   let vaultConfig: VaultConfig;
 
@@ -119,11 +86,13 @@ describe("vault", () => {
 
   before("Create funded user accounts", async () => {
     authority = await nodeWallet.createFundedWallet(1 * LAMPORTS_PER_SOL);
+    user1 = await nodeWallet.createFundedWallet(1 * LAMPORTS_PER_SOL);
   });
 
   before("Mint collateral A and B", async () => {
     collateralA = Keypair.generate();
     collateralB = Keypair.generate();
+    collateralC = Keypair.generate();
 
     // mint collateral A
     await executeTx(
@@ -149,6 +118,19 @@ describe("vault", () => {
         authority.publicKey
       ),
       [authority, collateralB]
+    );
+
+    // mint collateral C
+    await executeTx(
+      client.provider.connection,
+      await client.mintTokens(
+        client.provider.connection,
+        authority.publicKey,
+        collateralC.publicKey,
+        authority.publicKey,
+        authority.publicKey
+      ),
+      [authority, collateralC]
     );
   });
 
@@ -267,7 +249,7 @@ describe("vault", () => {
   before("Fund user accounts with some of each collateral", async () => {
     const fundingAmount = new u64(1_000_000_000_000); // 1,000,000
 
-    for (const user of [authority]) {
+    for (const user of [authority, user1]) {
       for (const collateral of [collateralA, collateralB]) {
         console.log(
           `Funding [${user.publicKey.toBase58()}] with ${fundingAmount.toNumber()} of ${collateral.publicKey.toBase58()}`
@@ -303,34 +285,20 @@ describe("vault", () => {
   });
 
   it("Initialize vault", async () => {
-    const currentTimestamp = new Date();
-    const _startAt = addSeconds(currentTimestamp, 1);
-    const startAt = new u64(getTimestamp(_startAt));
-    const _investAt = addSeconds(_startAt, 10);
-    const investAt = new u64(getTimestamp(_investAt));
-    const _redeemAt = addSeconds(_investAt, 10);
-    const redeemAt = new u64(getTimestamp(_redeemAt));
-
-    vaultConfig = {
-      authority: authority.publicKey,
+    const { addr } = await testClient.initVault({
       strategy: saberStrategy,
-      strategist: authority.publicKey,
       alpha: collateralA.publicKey,
       beta: collateralB.publicKey,
-      fixedRate: 1000, // bps
-      startAt,
-      investAt,
-      redeemAt,
-    };
+    } as InitVaultConfig);
 
-    await client.initializeVault(vaultConfig, authority);
+    const vault = await testClient.fetchVault(addr);
 
-    const { addr } = await client.generateVaultAddress(authority.publicKey);
-    const vault = await client.fetchVault(addr);
+    console.log(testClient.fetchAuthority());
+    console.log(vault);
 
-    // authority is both authority and strategist
-    assertKeysEqual(vault.authority, authority.publicKey);
-    assertKeysEqual(vault.strategist, authority.publicKey);
+    // in this case, authority is both authority and strategist
+    assertKeysEqual(vault.authority, testClient.fetchAuthority());
+    assertKeysEqual(vault.strategist, testClient.fetchAuthority());
 
     // check mints on vault are collateral we previously created
     assertKeysEqual(vault.alpha.mint, collateralA.publicKey);
@@ -338,256 +306,211 @@ describe("vault", () => {
   });
 
   it("Deposit mint A into the vault", async () => {
-    const { addr } = await client.generateVaultAddress(authority.publicKey);
-    const vault = await client.fetchVault(addr);
-
-    await spinUntil(asNumber(vault.startAt), 3, true);
-
+    const vaultAddress = testClient.getCurrentVaultAddress();
     const depositorAlphaTokenBalanceBefore = await client.fetchTokenBalance(
-      vault.alpha.mint,
-      authority.publicKey
+      collateralA.publicKey,
+      user1.publicKey
     );
 
     const amount = 100_000_000;
-    const _amount = new u64(amount);
-    await client.deposit(
-      addr,
-      vault.alpha.mint,
-      vault.alpha.lp,
-      // todo: create util to do conversion between amounts wrt decimals
-      _amount,
-      authority
-    );
+    await testClient.makeDeposit({
+      payer: user1,
+      amount,
+      mint: collateralA.publicKey,
+    } as DepositConfig);
 
     const depositorAlphaTokenBalanceAfter = await client.fetchTokenBalance(
-      vault.alpha.mint,
-      authority.publicKey
-    );
-
-    const userAlphaLpBalance = await client.fetchTokenBalance(
-      vault.alpha.lp,
-      authority.publicKey
+      collateralA.publicKey,
+      user1.publicKey
     );
 
     const vaultAlphaTokenBalance = await client.fetchTokenBalance(
-      vault.alpha.mint,
-      addr
+      collateralA.publicKey,
+      vaultAddress
     );
 
-    const vaultAfter = await client.fetchVault(addr);
+    const vaultAfter = await client.fetchVault(vaultAddress);
     expect(vaultAfter.alpha.deposited.toNumber()).to.equal(amount);
     expect(depositorAlphaTokenBalanceAfter).to.equal(
       depositorAlphaTokenBalanceBefore - amount
     );
-    expect(userAlphaLpBalance).to.equal(amount);
     expect(vaultAlphaTokenBalance).to.equal(amount);
   });
 
   it("Deposit mint B into the vault", async () => {
-    const { addr } = await client.generateVaultAddress(authority.publicKey);
-    const vault = await client.fetchVault(addr);
-
-    const depositorBetaTokenBalanceBefore = await client.fetchTokenBalance(
-      vault.beta.mint,
-      authority.publicKey
-    );
-
     const amount = 100_000_000;
-    const _amount = new u64(amount);
-    await client.deposit(
-      addr,
-      vault.beta.mint,
-      vault.beta.lp,
-      // todo: create util to do conversion between amounts wrt decimals
-      _amount,
-      authority
-    );
-
-    const depositorBetaTokenBalanceAfter = await client.fetchTokenBalance(
-      vault.beta.mint,
-      authority.publicKey
-    );
-
-    const userBetaLpBalance = await client.fetchTokenBalance(
-      vault.beta.lp,
-      authority.publicKey
-    );
-
-    const vaultAlphaTokenBalance = await client.fetchTokenBalance(
-      vault.beta.mint,
-      addr
-    );
-
-    const vaultAfter = await client.fetchVault(addr);
-    expect(vaultAfter.beta.deposited.toNumber()).to.equal(amount);
-    expect(depositorBetaTokenBalanceAfter).to.equal(
-      depositorBetaTokenBalanceBefore - amount
-    );
-    expect(userBetaLpBalance).to.equal(amount);
-    expect(vaultAlphaTokenBalance).to.equal(amount);
+    await testClient.makeDeposit({
+      payer: user1,
+      amount,
+      mint: collateralB.publicKey,
+    } as DepositConfig);
   });
 
   it("Invest funds via the strategy", async () => {
-    const { addr } = await client.generateVaultAddress(authority.publicKey);
-    const vault = await client.fetchVault(addr);
+    const vaultAddress = testClient.getCurrentVaultAddress();
+    const vault = await client.fetchVault(vaultAddress);
 
-    await spinUntil(asNumber(vault.investAt), 3, true);
+    const vaultAlphaTokenBalanceBefore = await client.fetchTokenBalance(
+      vault.alpha.mint,
+      vaultAddress
+    );
 
-    const depositorAlphaTokenBalanceBefore = await client.fetchTokenBalance(
+    const vaultBetaTokenBalanceBefore = await client.fetchTokenBalance(
       vault.beta.mint,
-      addr
+      vaultAddress
     );
 
-    const depositorBetaTokenBalanceBefore = await client.fetchTokenBalance(
-      vault.beta.mint,
-      addr
-    );
+    const amountA = vaultAlphaTokenBalanceBefore;
+    const amountB = vaultBetaTokenBalanceBefore;
+    const minOut = (amountA + amountB) * 0.75;
 
-    const slippage = 2500;
-    await client.invest(
-      {
-        tokenA: collateralA.publicKey,
-        tokenB: collateralB.publicKey,
-        swapAccount: stableSwapAccount.publicKey,
-      },
-      addr,
-      slippage,
-      authority
-    );
+    await testClient.investFunds({
+      payer: testClient.fetchAuthorityKp(),
+      tokenA: vault.alpha.mint,
+      amountA,
+      tokenB: vault.beta.mint,
+      amountB: amountB,
+      minOut,
+      swapAccount: stableSwapAccount.publicKey,
+      mint: collateralB.publicKey,
+    } as InvestConfig);
 
     const vaultAlphaTokenBalanceAfter = await client.fetchTokenBalance(
       vault.alpha.mint,
-      addr
+      vaultAddress
     );
 
     const vaultBetaTokenBalanceAfter = await client.fetchTokenBalance(
       vault.beta.mint,
-      addr
+      vaultAddress
     );
 
-    const vaultPoolLpToken = await client.fetchTokenBalance(
-      stableSwap.state.poolTokenMint,
-      addr
-    );
-
-    // at least amount invested with slippage
-
-    const minAmountOut = withSlippage(
-      depositorAlphaTokenBalanceBefore + depositorBetaTokenBalanceBefore,
-      slippage
-    );
-    console.log("minAmountOut: ", minAmountOut);
-
-    const vaultAfter = await client.fetchVault(addr);
-
-    expect(vaultAfter.alpha.invested.toNumber() > 0).to.be.true;
-    expect(vaultAfter.beta.invested.toNumber() > 0).to.be.true;
-
-    // todo balances?
     console.log("vaultAlphaTokenBalanceAfter: ", vaultAlphaTokenBalanceAfter);
     console.log("vaultBetaTokenBalanceAfter: ", vaultBetaTokenBalanceAfter);
-    // lp is equal to number of assets deposited?
-    console.log("vaultPoolLpToken: ", vaultPoolLpToken);
-    // depositorAlphaTokenBalanceBefore >= alphaInvested
-    // depositorBetaTokenBalanceBefore >= betaInvested
+
+    // const vaultPoolLpToken = await client.fetchTokenBalance(
+    //   stableSwap.state.poolTokenMint,
+    //   addr
+    // );
+
+    // // at least amount invested with slippage
+
+    // const minAmountOut = withSlippage(
+    //   depositorAlphaTokenBalanceBefore + depositorBetaTokenBalanceBefore,
+    //   slippage
+    // );
+    // console.log("minAmountOut: ", minAmountOut);
+
+    // const vaultAfter = await client.fetchVault(addr);
+
+    // expect(vaultAfter.alpha.invested.toNumber() > 0).to.be.true;
+    // expect(vaultAfter.beta.invested.toNumber() > 0).to.be.true;
+
+    // // todo balances?
+    // console.log("vaultAlphaTokenBalanceAfter: ", vaultAlphaTokenBalanceAfter);
+    // console.log("vaultBetaTokenBalanceAfter: ", vaultBetaTokenBalanceAfter);
+    // // lp is equal to number of assets deposited?
+    // console.log("vaultPoolLpToken: ", vaultPoolLpToken);
+    // // depositorAlphaTokenBalanceBefore >= alphaInvested
+    // // depositorBetaTokenBalanceBefore >= betaInvested
   });
 
-  it("Redeem Saber LP tokens for mints in the vault", async () => {
-    const { addr } = await client.generateVaultAddress(authority.publicKey);
-    const vault = await client.fetchVault(addr);
+  // it("Redeem Saber LP tokens for mints in the vault", async () => {
+  //   const { addr } = await client.generateVaultAddress(authority.publicKey);
+  //   const vault = await client.fetchVault(addr);
 
-    await spinUntil(asNumber(vault.redeemAt), 3, true);
+  //   await spinUntil(asNumber(vault.redeemAt), 3, true);
 
-    const slippage = 2500;
-    await client.redeem(
-      {
-        tokenA: collateralA.publicKey,
-        tokenB: collateralB.publicKey,
-        swapAccount: stableSwapAccount.publicKey,
-      },
-      addr,
-      slippage,
-      authority
-    );
+  //   const slippage = 2500;
+  //   await client.redeem(
+  //     {
+  //       tokenA: collateralA.publicKey,
+  //       tokenB: collateralB.publicKey,
+  //       swapAccount: stableSwapAccount.publicKey,
+  //     },
+  //     addr,
+  //     slippage,
+  //     authority
+  //   );
 
-    const vaultAlphaTokenBalanceAfter = await client.fetchTokenBalance(
-      vault.alpha.mint,
-      addr
-    );
+  //   const vaultAlphaTokenBalanceAfter = await client.fetchTokenBalance(
+  //     vault.alpha.mint,
+  //     addr
+  //   );
 
-    const vaultBetaTokenBalanceAfter = await client.fetchTokenBalance(
-      vault.beta.mint,
-      addr
-    );
+  //   const vaultBetaTokenBalanceAfter = await client.fetchTokenBalance(
+  //     vault.beta.mint,
+  //     addr
+  //   );
 
-    const vaultPoolLpToken = await client.fetchTokenBalance(
-      stableSwap.state.poolTokenMint,
-      addr
-    );
+  //   const vaultPoolLpToken = await client.fetchTokenBalance(
+  //     stableSwap.state.poolTokenMint,
+  //     addr
+  //   );
 
-    const vaultAfter = await client.fetchVault(addr);
-    const alphaInvested = vaultAfter.alpha.invested;
-    const betaInvested = vaultAfter.beta.invested;
+  //   const vaultAfter = await client.fetchVault(addr);
+  //   const alphaInvested = vaultAfter.alpha.invested;
+  //   const betaInvested = vaultAfter.beta.invested;
 
-    console.log("alphaInvested: ", alphaInvested.toNumber());
-    console.log("betaInvested: ", betaInvested.toNumber());
-    console.log("vaultAlphaTokenBalanceAfter: ", vaultAlphaTokenBalanceAfter);
-    console.log("vaultBetaTokenBalanceAfter: ", vaultBetaTokenBalanceAfter);
-    // lp is equal to number of assets deposited?
-    console.log("vaultPoolLpToken: ", vaultPoolLpToken);
-  });
+  //   console.log("alphaInvested: ", alphaInvested.toNumber());
+  //   console.log("betaInvested: ", betaInvested.toNumber());
+  //   console.log("vaultAlphaTokenBalanceAfter: ", vaultAlphaTokenBalanceAfter);
+  //   console.log("vaultBetaTokenBalanceAfter: ", vaultBetaTokenBalanceAfter);
+  //   // lp is equal to number of assets deposited?
+  //   console.log("vaultPoolLpToken: ", vaultPoolLpToken);
+  // });
 
-  it("Withdraw amount of mint from the vault", async () => {
-    const { addr } = await client.generateVaultAddress(authority.publicKey);
-    const vault = await client.fetchVault(addr);
+  // it("Withdraw amount of mint from the vault", async () => {
+  //   const { addr } = await client.generateVaultAddress(authority.publicKey);
+  //   const vault = await client.fetchVault(addr);
 
-    const alpha = vault.alpha.mint;
-    const alphaLp = vault.alpha.lp;
+  //   const alpha = vault.alpha.mint;
+  //   const alphaLp = vault.alpha.lp;
 
-    // lp before, lp after, collateral before, collateral after
-    const userAlphaBefore = await client.fetchTokenBalance(
-      alpha,
-      authority.publicKey
-    );
+  //   // lp before, lp after, collateral before, collateral after
+  //   const userAlphaBefore = await client.fetchTokenBalance(
+  //     alpha,
+  //     authority.publicKey
+  //   );
 
-    const userLpBefore = await client.fetchTokenBalance(
-      alphaLp,
-      authority.publicKey
-    );
+  //   const userLpBefore = await client.fetchTokenBalance(
+  //     alphaLp,
+  //     authority.publicKey
+  //   );
 
-    const vaultAlphaBefore = await client.fetchTokenBalance(alpha, addr);
+  //   const vaultAlphaBefore = await client.fetchTokenBalance(alpha, addr);
 
-    // todo
-    const exchangeRate = await client.calculateExchangeRate(addr, alpha);
-    console.log("exchangeRate: ", exchangeRate);
+  //   // todo
+  //   const exchangeRate = await client.calculateExchangeRate(addr, alpha);
+  //   console.log("exchangeRate: ", exchangeRate);
 
-    await client.withdraw(
-      addr,
-      collateralA.publicKey,
-      vault.alpha.lp,
-      authority
-    );
+  //   await client.withdraw(
+  //     addr,
+  //     collateralA.publicKey,
+  //     vault.alpha.lp,
+  //     authority
+  //   );
 
-    // lp -> assets is not always going to be 1-1 but rather based on supply exchange rate
-    const vaultAfter = await client.fetchVault(addr);
-    console.log("vaultAfter: ", vaultAfter);
-    console.log("alpha invested: ", vaultAfter.alpha.invested.toNumber());
-    console.log("alpha received: ", vaultAfter.alpha.received.toNumber());
+  //   // lp -> assets is not always going to be 1-1 but rather based on supply exchange rate
+  //   const vaultAfter = await client.fetchVault(addr);
+  //   console.log("vaultAfter: ", vaultAfter);
+  //   console.log("alpha invested: ", vaultAfter.alpha.invested.toNumber());
+  //   console.log("alpha received: ", vaultAfter.alpha.received.toNumber());
 
-    const userAlphaAfter = await client.fetchTokenBalance(
-      alpha,
-      authority.publicKey
-    );
+  //   const userAlphaAfter = await client.fetchTokenBalance(
+  //     alpha,
+  //     authority.publicKey
+  //   );
 
-    const userLpAfter = await client.fetchTokenBalance(
-      alphaLp,
-      authority.publicKey
-    );
+  //   const userLpAfter = await client.fetchTokenBalance(
+  //     alphaLp,
+  //     authority.publicKey
+  //   );
 
-    const vaultAlphaAfter = await client.fetchTokenBalance(alpha, addr);
+  //   const vaultAlphaAfter = await client.fetchTokenBalance(alpha, addr);
 
-    console.log("userAlphaAfter: ", userAlphaAfter);
-    console.log("userLpAfter: ", userLpAfter);
-    console.log("vaultAlphaAfter: ", vaultAlphaAfter);
-  });
+  //   console.log("userAlphaAfter: ", userAlphaAfter);
+  //   console.log("userLpAfter: ", userLpAfter);
+  //   console.log("vaultAlphaAfter: ", vaultAlphaAfter);
+  // });
 });
