@@ -21,13 +21,13 @@ import {
   getOrDefault,
   getCurrentTimestamp,
 } from "@ora-protocol/sdk";
-// import { printParsedTokenAccount } from "../../sdk/src/common/types";
 
 program.version("0.0.1");
 log.setLevel("info");
 
 export const DEFAULT_HURDLE_RATE = 1000;
 export const DEFAULT_PERIOD_IN_SECONDS = 1 * 24 * 60 * 60;
+export const DEFAULT_TOKEN_DECIMALS = 6;
 
 // ============================================================================
 // show account data commands
@@ -239,6 +239,8 @@ programCommand("mint")
     const _client = createClient(env, walletKeyPair);
     const mint = Keypair.generate();
 
+    const _decimals = decimals ? decimals : DEFAULT_TOKEN_DECIMALS;
+
     await executeTx(
       _client.provider.connection,
       await _client.mintTokens(
@@ -247,7 +249,7 @@ programCommand("mint")
         mint.publicKey,
         walletKeyPair.publicKey,
         walletKeyPair.publicKey,
-        decimals
+        _decimals
       ),
       [walletKeyPair, mint]
     );
