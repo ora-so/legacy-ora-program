@@ -53,8 +53,14 @@ pub fn handle(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
     burn(ctx.accounts.into_burn_reserve_token_context(), lp_amount)?;
 
     // assets per lp * lp
-    let asset_per_lp =
-        (ctx.accounts.source_ata.amount / ctx.accounts.lp.supply) * ctx.accounts.source_lp.amount;
+    let asset_per_lp = ctx
+        .accounts
+        .source_ata
+        .amount
+        .checked_div(ctx.accounts.lp.supply)
+        .ok_or_else(math_error!())?
+        .checked_mul(ctx.accounts.source_lp.amount)
+        .ok_or_else(math_error!())?;
 
     let authority = ctx.accounts.authority.key();
     let vault_signer_seeds = generate_vault_seeds!(authority.as_ref(), ctx.accounts.vault.bump);
