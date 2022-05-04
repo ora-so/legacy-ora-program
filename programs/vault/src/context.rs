@@ -105,7 +105,7 @@ pub struct Deposit<'info> {
     pub payer: Signer<'info>,
 
     /// CHECK: read-only account to validate vault address
-    pub authority: AccountInfo<'info>,
+    pub authority: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -158,7 +158,7 @@ pub struct Deposit<'info> {
 
     /// CHECK: create and validate JIT in instruction
     #[account(mut)]
-    pub destination_ata: AccountInfo<'info>,
+    pub destination_ata: UncheckedAccount<'info>,
 
     /// =============== PROGRAM ACCOUNTS ===============
     pub system_program: Program<'info, System>,
@@ -167,7 +167,7 @@ pub struct Deposit<'info> {
 
     /// CHECK: validate expected vs actual address
     #[account(address = spl_associated_token_account::ID)]
-    pub ata_program: AccountInfo<'info>,
+    pub ata_program: UncheckedAccount<'info>,
 
     pub rent: Sysvar<'info, Rent>,
 }
@@ -180,7 +180,7 @@ pub struct Claim<'info> {
     pub payer: Signer<'info>,
 
     /// CHECK: read-only account to validate vault address
-    pub authority: AccountInfo<'info>,
+    pub authority: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -238,7 +238,7 @@ pub struct Claim<'info> {
 
     /// CHECK: validate expected vs actual address
     #[account(address = spl_associated_token_account::ID)]
-    pub ata_program: AccountInfo<'info>,
+    pub ata_program: UncheckedAccount<'info>,
 
     pub rent: Sysvar<'info, Rent>,
 }
@@ -259,7 +259,7 @@ pub struct Withdraw<'info> {
     pub payer: Signer<'info>,
 
     /// CHECK: read-only account to validate vault address
-    pub authority: AccountInfo<'info>,
+    pub authority: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -291,7 +291,7 @@ pub struct Withdraw<'info> {
 
     /// CHECK: create and validate JIT in instruction
     #[account(mut)]
-    pub destination_ata: AccountInfo<'info>,
+    pub destination_ata: UncheckedAccount<'info>,
 
     /// =============== PROGRAM ACCOUNTS ===============
     pub system_program: Program<'info, System>,
@@ -300,7 +300,7 @@ pub struct Withdraw<'info> {
 
     /// CHECK: validate expected vs actual address
     #[account(address = spl_associated_token_account::ID)]
-    pub ata_program: AccountInfo<'info>,
+    pub ata_program: UncheckedAccount<'info>,
 
     pub rent: Sysvar<'info, Rent>,
 }
@@ -311,7 +311,7 @@ pub struct Invest<'info> {
     pub payer: Signer<'info>,
 
     /// CHECK: read-only account to validate vault address
-    pub authority: AccountInfo<'info>,
+    pub authority: UncheckedAccount<'info>,
 
     /// CHECK: pubkey matched in context, validation done in instruction
     pub strategy: UncheckedAccount<'info>,
@@ -335,7 +335,7 @@ pub struct Invest<'info> {
 
     /// CHECK: validate expected vs actual address
     #[account(address = spl_associated_token_account::ID)]
-    pub ata_program: AccountInfo<'info>,
+    pub ata_program: UncheckedAccount<'info>,
 
     pub rent: Sysvar<'info, Rent>,
 }
@@ -347,7 +347,7 @@ pub struct ProcessClaims<'info> {
     pub payer: Signer<'info>,
 
     /// CHECK: read-only account to validate vault address
-    pub authority: AccountInfo<'info>,
+    pub authority: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -368,7 +368,7 @@ pub struct Redeem<'info> {
     pub payer: Signer<'info>,
 
     /// CHECK: read-only account to validate vault address
-    pub authority: AccountInfo<'info>,
+    pub authority: UncheckedAccount<'info>,
 
     /// CHECK: pubkey matched in context, validation done in instruction
     pub strategy: UncheckedAccount<'info>,
@@ -392,7 +392,7 @@ pub struct Redeem<'info> {
 
     /// CHECK: validate expected vs actual address
     #[account(address = spl_associated_token_account::ID)]
-    pub ata_program: AccountInfo<'info>,
+    pub ata_program: UncheckedAccount<'info>,
 
     pub rent: Sysvar<'info, Rent>,
 }
