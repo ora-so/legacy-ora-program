@@ -842,95 +842,6 @@ export type Vault = {
       }
     },
     {
-      "name": "ErrorCode",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "MathError"
-          },
-          {
-            "name": "PublicKeyMismatch"
-          },
-          {
-            "name": "BumpMismatch"
-          },
-          {
-            "name": "InvalidMintAuthority"
-          },
-          {
-            "name": "UninitializedAccount"
-          },
-          {
-            "name": "IncorrectOwner"
-          },
-          {
-            "name": "PublicKeysShouldBeUnique"
-          },
-          {
-            "name": "AccountAlreadyInitialized"
-          },
-          {
-            "name": "InsufficientTokenBalance"
-          },
-          {
-            "name": "ImpossibleTokenRatioRequested"
-          },
-          {
-            "name": "InvalidStateTransition"
-          },
-          {
-            "name": "MissingTransitionAtTimeForState"
-          },
-          {
-            "name": "VaultHasNoDeposits"
-          },
-          {
-            "name": "InvalidDepositForVault"
-          },
-          {
-            "name": "WrongAccountOwner"
-          },
-          {
-            "name": "InvalidAccountData"
-          },
-          {
-            "name": "InvalidStrategyFlag"
-          },
-          {
-            "name": "StrategyAlreadyExists"
-          },
-          {
-            "name": "InvalidVaultState"
-          },
-          {
-            "name": "NonexistentAsset"
-          },
-          {
-            "name": "InvalidLpMint"
-          },
-          {
-            "name": "DepositExceedsUserCap"
-          },
-          {
-            "name": "DepositExceedsAssetCap"
-          },
-          {
-            "name": "CannotWithdrawWithoutLpTokens"
-          },
-          {
-            "name": "DataTypeMismatch"
-          },
-          {
-            "name": "SlippageTooHigh"
-          },
-          {
-            "name": "DualSidedExcesssNotPossible"
-          }
-        ]
-      }
-    },
-    {
       "name": "Key",
       "type": {
         "kind": "enum",
@@ -993,6 +904,143 @@ export type Vault = {
           }
         ]
       }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "MathError",
+      "msg": "Math Error"
+    },
+    {
+      "code": 6001,
+      "name": "PublicKeyMismatch",
+      "msg": "PublicKeyMismatch"
+    },
+    {
+      "code": 6002,
+      "name": "BumpMismatch",
+      "msg": "BumpMismatch"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidMintAuthority",
+      "msg": "InvalidMintAuthority"
+    },
+    {
+      "code": 6004,
+      "name": "UninitializedAccount",
+      "msg": "UninitializedAccount"
+    },
+    {
+      "code": 6005,
+      "name": "IncorrectOwner",
+      "msg": "IncorrectOwner"
+    },
+    {
+      "code": 6006,
+      "name": "PublicKeysShouldBeUnique",
+      "msg": "PublicKeysShouldBeUnique"
+    },
+    {
+      "code": 6007,
+      "name": "AccountAlreadyInitialized",
+      "msg": "AccountAlreadyInitialized"
+    },
+    {
+      "code": 6008,
+      "name": "InsufficientTokenBalance",
+      "msg": "Insufficient token balance"
+    },
+    {
+      "code": 6009,
+      "name": "ImpossibleTokenRatioRequested",
+      "msg": "Impossible token ratio request"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidStateTransition",
+      "msg": "Invalid state transition"
+    },
+    {
+      "code": 6011,
+      "name": "MissingTransitionAtTimeForState",
+      "msg": "Missing transition at time for state"
+    },
+    {
+      "code": 6012,
+      "name": "VaultHasNoDeposits",
+      "msg": "Vault has no deposits"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidDepositForVault",
+      "msg": "Invalid deposit for vault"
+    },
+    {
+      "code": 6014,
+      "name": "WrongAccountOwner",
+      "msg": "Wrong account owner"
+    },
+    {
+      "code": 6015,
+      "name": "InvalidAccountData",
+      "msg": "Invalid account data"
+    },
+    {
+      "code": 6016,
+      "name": "InvalidStrategyFlag",
+      "msg": "Invalid strategy flag"
+    },
+    {
+      "code": 6017,
+      "name": "StrategyAlreadyExists",
+      "msg": "Strategy already exists"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidVaultState",
+      "msg": "Invalid vault state"
+    },
+    {
+      "code": 6019,
+      "name": "NonexistentAsset",
+      "msg": "Non-existent Asset"
+    },
+    {
+      "code": 6020,
+      "name": "InvalidLpMint",
+      "msg": "Invalid LP Mint"
+    },
+    {
+      "code": 6021,
+      "name": "DepositExceedsUserCap",
+      "msg": "Deposit exceeds user cap"
+    },
+    {
+      "code": 6022,
+      "name": "DepositExceedsAssetCap",
+      "msg": "Deposit exceeds asset cap"
+    },
+    {
+      "code": 6023,
+      "name": "CannotWithdrawWithoutLpTokens",
+      "msg": "Cannot redeem without LP tokens"
+    },
+    {
+      "code": 6024,
+      "name": "DataTypeMismatch",
+      "msg": "Data type mismatch"
+    },
+    {
+      "code": 6025,
+      "name": "SlippageTooHigh",
+      "msg": "Slippage too high"
+    },
+    {
+      "code": 6026,
+      "name": "DualSidedExcesssNotPossible",
+      "msg": "Dual-sided excesss is not possible"
     }
   ]
 };
@@ -1841,95 +1889,6 @@ export const IDL: Vault = {
       }
     },
     {
-      "name": "ErrorCode",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "MathError"
-          },
-          {
-            "name": "PublicKeyMismatch"
-          },
-          {
-            "name": "BumpMismatch"
-          },
-          {
-            "name": "InvalidMintAuthority"
-          },
-          {
-            "name": "UninitializedAccount"
-          },
-          {
-            "name": "IncorrectOwner"
-          },
-          {
-            "name": "PublicKeysShouldBeUnique"
-          },
-          {
-            "name": "AccountAlreadyInitialized"
-          },
-          {
-            "name": "InsufficientTokenBalance"
-          },
-          {
-            "name": "ImpossibleTokenRatioRequested"
-          },
-          {
-            "name": "InvalidStateTransition"
-          },
-          {
-            "name": "MissingTransitionAtTimeForState"
-          },
-          {
-            "name": "VaultHasNoDeposits"
-          },
-          {
-            "name": "InvalidDepositForVault"
-          },
-          {
-            "name": "WrongAccountOwner"
-          },
-          {
-            "name": "InvalidAccountData"
-          },
-          {
-            "name": "InvalidStrategyFlag"
-          },
-          {
-            "name": "StrategyAlreadyExists"
-          },
-          {
-            "name": "InvalidVaultState"
-          },
-          {
-            "name": "NonexistentAsset"
-          },
-          {
-            "name": "InvalidLpMint"
-          },
-          {
-            "name": "DepositExceedsUserCap"
-          },
-          {
-            "name": "DepositExceedsAssetCap"
-          },
-          {
-            "name": "CannotWithdrawWithoutLpTokens"
-          },
-          {
-            "name": "DataTypeMismatch"
-          },
-          {
-            "name": "SlippageTooHigh"
-          },
-          {
-            "name": "DualSidedExcesssNotPossible"
-          }
-        ]
-      }
-    },
-    {
       "name": "Key",
       "type": {
         "kind": "enum",
@@ -1992,6 +1951,143 @@ export const IDL: Vault = {
           }
         ]
       }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "MathError",
+      "msg": "Math Error"
+    },
+    {
+      "code": 6001,
+      "name": "PublicKeyMismatch",
+      "msg": "PublicKeyMismatch"
+    },
+    {
+      "code": 6002,
+      "name": "BumpMismatch",
+      "msg": "BumpMismatch"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidMintAuthority",
+      "msg": "InvalidMintAuthority"
+    },
+    {
+      "code": 6004,
+      "name": "UninitializedAccount",
+      "msg": "UninitializedAccount"
+    },
+    {
+      "code": 6005,
+      "name": "IncorrectOwner",
+      "msg": "IncorrectOwner"
+    },
+    {
+      "code": 6006,
+      "name": "PublicKeysShouldBeUnique",
+      "msg": "PublicKeysShouldBeUnique"
+    },
+    {
+      "code": 6007,
+      "name": "AccountAlreadyInitialized",
+      "msg": "AccountAlreadyInitialized"
+    },
+    {
+      "code": 6008,
+      "name": "InsufficientTokenBalance",
+      "msg": "Insufficient token balance"
+    },
+    {
+      "code": 6009,
+      "name": "ImpossibleTokenRatioRequested",
+      "msg": "Impossible token ratio request"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidStateTransition",
+      "msg": "Invalid state transition"
+    },
+    {
+      "code": 6011,
+      "name": "MissingTransitionAtTimeForState",
+      "msg": "Missing transition at time for state"
+    },
+    {
+      "code": 6012,
+      "name": "VaultHasNoDeposits",
+      "msg": "Vault has no deposits"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidDepositForVault",
+      "msg": "Invalid deposit for vault"
+    },
+    {
+      "code": 6014,
+      "name": "WrongAccountOwner",
+      "msg": "Wrong account owner"
+    },
+    {
+      "code": 6015,
+      "name": "InvalidAccountData",
+      "msg": "Invalid account data"
+    },
+    {
+      "code": 6016,
+      "name": "InvalidStrategyFlag",
+      "msg": "Invalid strategy flag"
+    },
+    {
+      "code": 6017,
+      "name": "StrategyAlreadyExists",
+      "msg": "Strategy already exists"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidVaultState",
+      "msg": "Invalid vault state"
+    },
+    {
+      "code": 6019,
+      "name": "NonexistentAsset",
+      "msg": "Non-existent Asset"
+    },
+    {
+      "code": 6020,
+      "name": "InvalidLpMint",
+      "msg": "Invalid LP Mint"
+    },
+    {
+      "code": 6021,
+      "name": "DepositExceedsUserCap",
+      "msg": "Deposit exceeds user cap"
+    },
+    {
+      "code": 6022,
+      "name": "DepositExceedsAssetCap",
+      "msg": "Deposit exceeds asset cap"
+    },
+    {
+      "code": 6023,
+      "name": "CannotWithdrawWithoutLpTokens",
+      "msg": "Cannot redeem without LP tokens"
+    },
+    {
+      "code": 6024,
+      "name": "DataTypeMismatch",
+      "msg": "Data type mismatch"
+    },
+    {
+      "code": 6025,
+      "name": "SlippageTooHigh",
+      "msg": "Slippage too high"
+    },
+    {
+      "code": 6026,
+      "name": "DualSidedExcesssNotPossible",
+      "msg": "Dual-sided excesss is not possible"
     }
   ]
 };

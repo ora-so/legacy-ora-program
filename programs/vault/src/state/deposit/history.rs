@@ -65,6 +65,6 @@ impl History {
     }
 
     pub fn reset_claim(&mut self) {
-        return self.claim = 0;
+        self.claim = 0;
     }
 }
