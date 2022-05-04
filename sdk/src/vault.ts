@@ -94,7 +94,25 @@ export interface IVault {
   claimsIdx?: u64;
 }
 
-export const toIVault = (vault: any): IVault => vault as IVault;
+const toState = (state: string) => {
+  switch (state.toLowerCase()) {
+    case "deposit":
+      return State.Deposit;
+    case "live":
+      return State.Live;
+    case "redeem":
+      return State.Redeem;
+    case "withdraw":
+      return State.Withdraw;
+    default:
+      return State.Inactive;
+  }
+};
+
+export const toIVault = (vault: any): IVault => {
+  vault.state = toState(Object.keys(vault.state)[0]);
+  return vault as IVault;
+};
 
 /**
  * note: we forgo passing in depositor's ATAs here because it's presumed they
@@ -231,6 +249,10 @@ export class VaultClient extends AccountUtils {
 
   fetchVault = async (addr: PublicKey) => {
     return this.vaultProgram.account.vault.fetch(addr);
+  };
+
+  fetchVaults = async () => {
+    return this.vaultProgram.account.vault.all();
   };
 
   fetchReceipt = async (addr: PublicKey) => {
