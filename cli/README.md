@@ -36,7 +36,7 @@ ts-node ./src/cli.ts mint --env <env> --keypair <path-to-keypair> --decimals <nu
 
 ##### The `mint_to` command
 
-The keypair here is related to the token's mint authority. You also must account for decimals in the amount parameter. For example, sending amount = 100 of a token with 6 decimals means that you'll actually be sending `100 / 10^6 = 0.0001`. If you want to send 1 token, you need to specify `1x10^6`.
+The keypair here is related to the token's mint authority. We take care of the decimal calculations for you. For example, if you say amount = 100 of a token with 6 decimals, we will compute the absolute number of tokens `100 * 10^6 = 1000000000`.
 
 ```
 ts-node ./src/cli.ts mint_to --env <env> --keypair <path-to-keypair> --mint <pubkey> --to <pubkey> --amount <number>
@@ -66,6 +66,14 @@ You can see all data associated with a vault via the `show_vault` command. This 
 ts-node ./src/cli.ts show_vault --env <env> --keypair <path-to-keypair> --vault <pubkey>
 ```
 
+### Deposit into a vault
+
+Deposit some amount of a mint into a vault. You don't need to account for decimals, i.e. just set amount == 100 if you want to deposit 100 tokens. We'll adjust the amount based on the token's decimals. The command will look something like
+
+```
+ts-node ./src/cli.ts deposit --env <env> --keypair <path-to-keypair> --vault <pubkey> --mint <pubkey> --amount <number>
+```
+
 ### Todo
 
-Add commands for other operations, like deposit, invest, process_claims, claim, withdraw, etc.
+Add commands for other operations, invest, process_claims, claim, withdraw, etc.

@@ -20,6 +20,7 @@ import {
   addSeconds,
   getOrDefault,
   getCurrentTimestamp,
+  toU64,
 } from "@ora-protocol/sdk";
 
 program.version("0.0.1");
@@ -226,6 +227,36 @@ programCommand("show_vault")
     log.info("===========================================");
   });
 
+programCommand("deposit")
+  .option(
+    "-v, --vault <pubkey>",
+    "Public key of the vault into which you want to deposit funds"
+  )
+  .option("-m --mint <pubkey>", "Public key of the asset you want to deposit")
+  .option(
+    "-a --amount <number>",
+    "Amount of funds to deposit. Ignore the decimal calculation - just provide the raw amount."
+  )
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, mint, amount } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+
+    const _vault = new PublicKey(vault);
+    const _mint = new PublicKey(mint);
+    const decimals = (await _client.fetchTokenSupply(_mint)).decimals;
+    const _amount = toU64(+amount * 10 ** decimals);
+
+    await _client.deposit(_vault, _mint, _amount, walletKeyPair);
+
+    log.info("===========================================");
+    log.info(
+      `Deposited ${_amount.toNumber()} of ${_mint.toBase58()} into vault ${_vault.toBase58()}`
+    );
+    log.info("===========================================");
+  });
+
 // mint with keypair as authority since it has to sign the tx & can be used to mint new tokens.
 programCommand("mint")
   .option(
@@ -266,16 +297,18 @@ programCommand("mint_to")
   .option("-t, --to <pubkey>", "Address to which we should mint tokens")
   .option(
     "-a, --amount <number>",
-    "Amount of tokens to mint. Will not adjust for decimals."
+    "Amount of tokens to mint. Ignore decimals, amount will be adjusted based on token decimals."
   )
   .action(async (_, cmd) => {
     const { keypair, env, to, amount, mint } = cmd.opts();
 
     const walletKeyPair: Keypair = loadWalletKey(keypair);
     const _client = createClient(env, walletKeyPair);
-    const _amount = new u64(amount);
     const _to = new PublicKey(to);
     const _mint = new PublicKey(mint);
+
+    const decimals = (await _client.fetchTokenSupply(_mint)).decimals;
+    const _amount = toU64(+amount * 10 ** decimals);
 
     await executeTx(
       _client.provider.connection,
