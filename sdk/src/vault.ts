@@ -7,8 +7,10 @@ import {
   u64,
 } from "@solana/spl-token";
 import {
+  AccountInfo,
   AccountMeta,
   Cluster,
+  Commitment,
   Connection,
   Keypair,
   PublicKey,
@@ -18,107 +20,59 @@ import {
 import { SaberRegistryProvider } from "saber-swap-registry-provider";
 
 import { AccountUtils } from "./common/account-utils";
-import { DEVNET } from "./common/constant";
+import { DEVNET, MAX_BPS, ONE_U64, ZERO_U64 } from "./common/constant";
 import { PriceClient } from "./common/price";
-import { PdaDerivationResult, SignerInfo, PoolConfig } from "./common/types";
+import {
+  PdaDerivationResult,
+  SignerInfo,
+  PoolConfig,
+  TokenSupply,
+  IAsset,
+  IVault,
+  VaultConfig,
+  ProcessClaimsResult,
+  Strategy,
+  StrategyType,
+} from "./common/types";
 import {
   getSignersFromPayer,
   flattenValidInstructions,
   getCurrentTimestamp,
+  toIVault,
 } from "./common/util";
 import { Vault } from "./types/vault";
 
-const MAX_BPS = 10_000;
-const U64_ZERO = new u64(0);
-const U64_ONE = new u64(1);
-
-export interface ProcessClaimsResult {
-  claimsProcessed: boolean;
-  tx: string;
-}
-
-export interface TokenSupply {
-  supply: number;
-  decimals: number;
-}
-
-// include strategy object?
-export interface VaultConfig {
-  authority: PublicKey;
-  strategy: PublicKey;
-  strategist: PublicKey;
-  alpha: PublicKey;
-  beta: PublicKey;
-  fixedRate: number;
-  startAt: u64;
-  investAt: u64;
-  redeemAt: u64;
-}
-
-export interface Asset {
-  mint: PublicKey;
-  lp: PublicKey;
-  assetCap?: u64;
-  userCap?: u64;
-  deposits: u64;
-  deposited: u64;
-  invested: u64;
-  excess: u64;
-  received: u64;
-}
-
-export enum State {
-  Inactive,
-  Deposit,
-  Live,
-  Redeem,
-  Withdraw,
-}
-
-export interface IVault {
-  bump: number;
-  authority: PublicKey;
-  alpha: Asset;
-  beta: Asset;
-  strategy: PublicKey;
-  strategist: PublicKey;
-  fixedRate: number;
-  state: State;
-  startAt: u64;
-  investAt: u64;
-  redeemAt: u64;
-
-  // related to claims
-  excess?: PublicKey;
-  claimsProcessed: boolean;
-  claimsIdx?: u64;
-}
-
-const toState = (state: string) => {
-  switch (state.toLowerCase()) {
-    case "deposit":
-      return State.Deposit;
-    case "live":
-      return State.Live;
-    case "redeem":
-      return State.Redeem;
-    case "withdraw":
-      return State.Withdraw;
-    default:
-      return State.Inactive;
-  }
+/**
+ * Scan array to see if there is more than 1 non-zero value
+ *
+ * @param arr
+ * @returns boolean representing only 1 non-zero u8 value
+ */
+export const verifyBitArr = (arr: Uint8Array): boolean => {
+  return (
+    arr.reduce((prev, curr) => {
+      if (curr > 0) return prev + 1;
+      return prev;
+    }, 0) === 1
+  );
 };
 
-export const toIVault = (vault: any): IVault => {
-  vault.state = toState(Object.keys(vault.state)[0]);
-  return vault as IVault;
-};
+/**
+ * Typescript counter-part to Rust's u64::from_le_bytes()
+ *
+ * @param arr
+ * @returns number from its u8 parts.
+ */
+export const arrToU64 = (arr: Uint8Array) =>
+  arr.reduce((prev, curr, i) => {
+    return prev | (curr * (1 << (8 * i)));
+  }, 0);
 
 /**
  * note: we forgo passing in depositor's ATAs here because it's presumed they
  * already have these tokens. otherwise, they will not be able to deposit.
  *
- * todo: write an Asset wrapper
+ * todo: write an IAsset wrapper
  */
 export class VaultClient extends AccountUtils {
   wallet: Wallet;
@@ -247,6 +201,61 @@ export class VaultClient extends AccountUtils {
   // Fetch & deserialize objects
   // ================================================
 
+  getAccountInfo = async (
+    addr: PublicKey,
+    commitment?: Commitment
+  ): Promise<AccountInfo<Buffer> | null> => {
+    return await this.conn.getAccountInfo(addr, commitment);
+  };
+
+  // todo: export this to its own class?
+  classifyStrategy = async (
+    addr: PublicKey,
+    commitment?: Commitment
+  ): Promise<Strategy> => {
+    const accountInfo = await this.getAccountInfo(addr, commitment);
+    if (accountInfo === null)
+      throw new Error(`No account info found for ${addr.toBase58()}`);
+
+    const flagsOffset = 8; // ignore discriminator
+    const flagsLength = 8; // u64
+    const flags = accountInfo.data.filter(
+      (_, i) => i >= flagsOffset && i < flagsOffset + flagsLength
+    );
+
+    if (!verifyBitArr(flags))
+      throw new Error(`Invalid strategy acount data: ${flags}`);
+
+    const n = arrToU64(flags);
+    const val: StrategyType = Strategy[n] as StrategyType;
+    if (val === undefined) throw new Error(`No strategy found for ${n}`);
+
+    return Strategy[val];
+  };
+
+  // todo: how will we know how to decode this?
+  // add return types => string, and general obj?
+  fetchStrategy = async (addr: PublicKey, commitment?: Commitment) => {
+    const strategy = await this.classifyStrategy(addr, commitment);
+
+    switch (strategy) {
+      case Strategy.SaberLpStrategyV0:
+        // return {
+        //   name: SABER_LP_STRATEGY,
+        //   protocol: Protocol.Saber,
+        //   version: 0,
+        //   data: this.fetchSaberLpStrategyV0(addr),
+        // };
+        return this.fetchSaberLpStrategyV0(addr);
+      default:
+        throw new Error(`Unknown strategy: ${strategy}`);
+    }
+  };
+
+  fetchSaberLpStrategyV0 = async (addr: PublicKey) => {
+    return this.vaultProgram.account.saberLpStrategyV0.fetch(addr);
+  };
+
   fetchVault = async (addr: PublicKey) => {
     return this.vaultProgram.account.vault.fetch(addr);
   };
@@ -286,7 +295,7 @@ export class VaultClient extends AccountUtils {
     };
   };
 
-  getAsset = (vault: IVault, mint: PublicKey): Asset => {
+  getAsset = (vault: IVault, mint: PublicKey): IAsset => {
     if (mint.toBase58() === vault.alpha.mint.toBase58()) {
       return vault.alpha;
     } else if (mint.toBase58() === vault.beta.mint.toBase58()) {
@@ -717,7 +726,7 @@ export class VaultClient extends AccountUtils {
       remainingAccounts.push(...this.toAccountMeta(receipt, history));
 
       // decrement claims index
-      _claimsIndex = _claimsIndex.sub(U64_ONE);
+      _claimsIndex = _claimsIndex.sub(ONE_U64);
     }
 
     return remainingAccounts;
@@ -852,7 +861,7 @@ export class VaultClient extends AccountUtils {
     mint: PublicKey,
     lp: PublicKey,
     payer: PublicKey | Keypair,
-    amount: u64 = U64_ZERO
+    amount: u64 = ZERO_U64
   ) => {
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
     const _vault = await this.fetchVault(vault);

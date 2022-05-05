@@ -4,12 +4,23 @@ import {
   clusterApiUrl,
   Connection,
   Keypair,
+  LAMPORTS_PER_SOL,
   PublicKey,
+  Transaction,
+  TransactionResponse,
 } from "@solana/web3.js";
 import { program } from "commander";
 import log from "loglevel";
 import { u64 } from "@solana/spl-token";
 import invariant from "tiny-invariant";
+import {
+  deployNewSwap,
+  StableSwap,
+  SWAP_PROGRAM_ID,
+  IExchange,
+  depositInstruction,
+} from "@saberhq/stableswap-sdk";
+import { SignerWallet } from "@saberhq/solana-contrib";
 
 import { VaultClient } from "../../sdk/src/vault";
 import { loadWalletKey } from "./helpers/account";
@@ -21,7 +32,15 @@ import {
   getOrDefault,
   getCurrentTimestamp,
   toU64,
+  toIVault,
 } from "@ora-protocol/sdk";
+
+import {
+  setupPoolInitialization,
+  FEES,
+  AMP_FACTOR,
+  sendAndConfirmTransactionWithTitle,
+} from "./helpers/saber/pool";
 
 program.version("0.0.1");
 log.setLevel("info");
@@ -65,6 +84,73 @@ programCommand("derive_vault")
     log.info("===========================================");
     log.info("Vault address: ", addr.toBase58());
     log.info("Vault bump: ", bump);
+    log.info("===========================================");
+  });
+
+programCommand("init_strategy")
+  .option(
+    "-a, --tokenA <pubkey>",
+    "Pubkey of the token A associated with the strategy"
+  )
+  .option(
+    "-b, --tokenB <pubkey>",
+    "Pubkey of the token B associated with the strategy"
+  )
+  .action(async (_, cmd) => {
+    const { keypair, env, tokenA, tokenB } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+
+    const _tokenA = new PublicKey(tokenA);
+    const _tokenB = new PublicKey(tokenB);
+
+    const { tx, strategy } = await _client.initializeStrategy(
+      _tokenA,
+      _tokenB,
+      walletKeyPair
+    );
+
+    log.info("===========================================");
+    log.info(
+      `✅ Created strategy with public key [${strategy.toBase58()}] in tx [${tx}]`
+    );
+    log.info("===========================================");
+  });
+
+programCommand("decode_strategy")
+  .option("-s, --strategy <pubkey>", "Pubkey of the strategy to decode")
+  .action(async (_, cmd) => {
+    const { keypair, env, strategy } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+
+    const _strategy = new PublicKey(strategy);
+
+    const result = await _client.fetchStrategy(_strategy);
+
+    const discriminator = result.data.buffer.slice(0, 8);
+    // const flags = result.data.buffer.slice(8, 16);
+    const flags = result.data.filter((e, i) => i >= 8 && i < 16);
+
+    log.info("result: ", result);
+    log.info("discriminator: ", discriminator);
+    log.info("flags: ", flags);
+
+    const view = new Int8Array(flags);
+    log.info("view: ", view);
+
+    log.info("8: ", result.data.at(8));
+    log.info("9: ", result.data.at(9));
+    log.info("10: ", result.data.at(10));
+    log.info("11: ", result.data.at(11));
+    log.info("12: ", result.data.at(12));
+
+    for (const b of result.data) {
+      console.log(b);
+    }
+
     log.info("===========================================");
   });
 
@@ -143,8 +229,12 @@ programCommand("init_vault")
 
     await _client.initializeVault(vaultConfig, walletKeyPair);
 
+    const { addr } = await _client.generateVaultAddress(_authority);
+
     log.info("===========================================");
-    log.info("Created ✅ See vault data with [show_vault] command");
+    log.info(
+      `✅ Created vault with key [${addr.toBase58()}]. Run [show_vault] command to see other vault data.`
+    );
     log.info("===========================================");
   });
 
@@ -172,7 +262,7 @@ programCommand("show_vault")
       vAddress = addr;
     }
 
-    const _vault = await _client.fetchVault(vAddress);
+    const _vault = toIVault(await _client.fetchVault(vAddress));
 
     log.info("===========================================");
     log.info("Data for vault: ", vAddress.toBase58());
@@ -327,6 +417,175 @@ programCommand("mint_to")
       `Minting [${amount}] [${_mint.toBase58()}] with authority [${walletKeyPair.publicKey.toBase58()}]`
     );
     log.info("===========================================");
+  });
+
+// ============================================================================
+// saber related commands
+// ============================================================================
+
+// todo: mostly for testing purposes. we don't actually need this for mainnet.
+// todo: deposit into pool
+programCommand("init_saber_pool")
+  .option("-ta, --tokenA <pubkey>", "Token A")
+  .option("-tb, --tokenB <pubkey>", "Token B")
+  .action(async (_, cmd) => {
+    const { keypair, env, tokenA, tokenB } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _authority = walletKeyPair.publicKey;
+
+    const _connection = new Connection(clusterApiUrl(env));
+    const provider = new SignerWallet(walletKeyPair).createProvider(
+      _connection
+    );
+
+    const stableSwapAccount = Keypair.generate();
+
+    const _tokenA = new PublicKey(tokenA);
+    const _tokenB = new PublicKey(tokenB);
+
+    const { seedPoolAccounts } = await setupPoolInitialization(
+      _tokenA,
+      _tokenB,
+      walletKeyPair
+    );
+
+    const { swap, initializeArgs } = await deployNewSwap({
+      provider: provider as any,
+      swapProgramID: SWAP_PROGRAM_ID,
+      adminAccount: _authority,
+      tokenAMint: _tokenA,
+      tokenBMint: _tokenB,
+      ampFactor: new u64(AMP_FACTOR),
+      fees: FEES,
+      initialLiquidityProvider: _authority,
+      useAssociatedAccountForInitialLP: true,
+      seedPoolAccounts,
+      swapAccountSigner: stableSwapAccount,
+    });
+
+    console.log("stableSwapAccount: ", stableSwapAccount.publicKey.toBase58());
+    console.log("swap: ", swap);
+    console.log("initializeArgs: ", initializeArgs);
+  });
+
+programCommand("load_pool", false)
+  .option("-ssa, --stableSwapAccount <pubkey>", "Stable swap account")
+  .option("-e, --env <string>", "Environment in which pool exists")
+  .action(async (_, cmd) => {
+    const { env, stableSwapAccount } = cmd.opts();
+
+    const _stableSwapAccount = new PublicKey(stableSwapAccount);
+
+    const stableSwapProgramId = new PublicKey(
+      "SSwpkEEcbUqx4vtoEByFjSkhKdCT862DNVb52nZg1UZ"
+    );
+    const _connection = new Connection(clusterApiUrl(env));
+    const fetchedStableSwap = await StableSwap.load(
+      _connection,
+      _stableSwapAccount,
+      stableSwapProgramId
+    );
+
+    console.log("fetchedStableSwap: ", fetchedStableSwap);
+  });
+
+programCommand("deposit_into_pool")
+  .option("-ssa, --stableSwapAccount <pubkey>", "Stable swap account")
+  .option(
+    "-pa, --poolAuthority <pubkey>",
+    "Stable swap pool authority. Used to derive poolTokenAccount."
+  )
+  .option("-aa, --amountA <number>", "Deposit amount A")
+  .option("-ab, --amountB <number>", "Deposit amount B")
+  .action(async (_, cmd) => {
+    const { keypair, env, stableSwapAccount, amountA, amountB, poolAuthority } =
+      cmd.opts();
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const payer = walletKeyPair.publicKey;
+
+    const _client = createClient(env, walletKeyPair);
+    const _stableSwapAccount = new PublicKey(stableSwapAccount);
+    const _poolAuthority = new PublicKey(poolAuthority);
+    const stableSwapProgramId = new PublicKey(
+      "SSwpkEEcbUqx4vtoEByFjSkhKdCT862DNVb52nZg1UZ"
+    );
+    const _connection = new Connection(clusterApiUrl(env));
+    const stableSwap = await StableSwap.load(
+      _connection,
+      _stableSwapAccount,
+      stableSwapProgramId
+    );
+    const tokenAtaA = await _client.getOrCreateATA(
+      stableSwap.state.tokenA.mint,
+      payer,
+      payer,
+      _connection
+    );
+    const tokenAmountA = await _client.fetchTokenBalance(
+      stableSwap.state.tokenB.mint,
+      payer
+    );
+    console.log("tokenAmountA: ", tokenAmountA);
+    const tokenAtaB = await _client.getOrCreateATA(
+      stableSwap.state.tokenA.mint,
+      payer,
+      payer,
+      _connection
+    );
+
+    const tokenAmountB = await _client.fetchTokenBalance(
+      stableSwap.state.tokenB.mint,
+      payer
+    );
+    console.log("tokenAmountB: ", tokenAmountB);
+
+    // actually must be ATA of pool authority!
+    const poolTokenMintAta = await _client.getOrCreateATA(
+      stableSwap.state.poolTokenMint,
+      _poolAuthority,
+      payer,
+      _connection
+    );
+    const tokenAmountPoolMint = await _client.fetchTokenBalance(
+      stableSwap.state.poolTokenMint,
+      _poolAuthority
+    );
+
+    console.log("tokenAmountPoolMint: ", tokenAmountPoolMint);
+    console.log("poolTokenMintAta: ", poolTokenMintAta.address);
+    console.log("poolTokenMintAta: ", poolTokenMintAta.address.toBase58());
+
+    // todo: adjust for decimals?
+    const depositAmountA = +amountA; // LAMPORTS_PER_SOL *
+    const depositAmountB = +amountB; // LAMPORTS_PER_SOL *
+
+    // https://github.com/saber-hq/stable-swap/blob/master/stable-swap-program/sdk/test/e2e.int.test.ts#L208
+    let txReceipt: TransactionResponse | null = null;
+    const txn = new Transaction().add(
+      stableSwap.deposit({
+        userAuthority: _poolAuthority,
+        sourceA: tokenAtaA.address,
+        sourceB: tokenAtaB.address,
+        poolTokenAccount: poolTokenMintAta.address,
+        tokenAmountA: new u64(depositAmountA),
+        tokenAmountB: new u64(depositAmountB),
+        minimumPoolTokenAmount: new u64(0), // To avoid slippage errors
+      })
+    );
+    const txSig = await sendAndConfirmTransactionWithTitle(
+      "deposit",
+      _connection,
+      txn,
+      walletKeyPair,
+      walletKeyPair
+    );
+    txReceipt = await _connection.getTransaction(txSig, {
+      commitment: "confirmed",
+    });
+
+    console.log("txSig: ", txSig);
+    console.log("txReceipt: ", txReceipt);
   });
 
 // ============================================================================

@@ -44,6 +44,7 @@ pub trait StrategyActions {
 #[derive(Copy, Clone, BitFlags, Debug, Eq, PartialEq)]
 #[repr(u64)]
 pub enum StrategyFlag {
+    // leaves us room for 63 strategies; should we increase this to something like u128 or u256?
     SaberLpStrategyV0 = 1u64 << 0,
 }
 

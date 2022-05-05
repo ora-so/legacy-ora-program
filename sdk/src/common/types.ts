@@ -62,15 +62,81 @@ export interface PdaDerivationResult {
   bump: number;
 }
 
-export interface Collateral {
-  mint: PublicKey;
-  allocation: number;
+export interface ProcessClaimsResult {
+  claimsProcessed: boolean;
+  tx: string;
 }
 
-export interface RebalanceConfig {
-  amountIn: number;
-  maxSlippageBps: number;
+export interface TokenSupply {
+  supply: number;
+  decimals: number;
+}
+
+export interface VaultConfig {
+  authority: PublicKey;
+  strategy: PublicKey;
+  strategist: PublicKey;
+  alpha: PublicKey;
+  beta: PublicKey;
+  fixedRate: number;
+  startAt: u64;
+  investAt: u64;
+  redeemAt: u64;
+}
+
+export interface IAsset {
+  mint: PublicKey;
+  lp: PublicKey;
+  assetCap?: u64;
+  userCap?: u64;
+  deposits: u64;
+  deposited: u64;
+  invested: u64;
+  excess: u64;
+  received: u64;
+}
+
+export enum State {
+  Inactive = "Inactive",
+  Deposit = "Deposit",
+  Live = "Live",
+  Redeem = "Redeem",
+  Withdraw = "Withdraw",
+}
+
+export interface IVault {
+  bump: number;
+  authority: PublicKey;
+  alpha: IAsset;
+  beta: IAsset;
+  strategy: PublicKey;
+  strategist: PublicKey;
+  fixedRate: number;
+  state: State;
+  startAt: u64;
+  investAt: u64;
+  redeemAt: u64;
+
+  // related to claims
+  excess?: PublicKey;
+  claimsProcessed: boolean;
+  claimsIdx?: u64;
+}
+
+export interface SaberLpStrategyV0 {
+  flags: u64;
+  bump: number;
   tokenA: PublicKey;
   tokenB: PublicKey;
-  swapAccount?: PublicKey;
 }
+
+export enum Protocol {
+  Saber = "Saber",
+}
+
+// helper functions to deserialize strategy accounts
+export enum Strategy {
+  SaberLpStrategyV0 = 1 << 0,
+}
+
+export type StrategyType = keyof typeof Strategy;

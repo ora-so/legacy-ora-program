@@ -11,7 +11,7 @@ import {
 import invariant from "tiny-invariant";
 import { ZERO_U64, MAX_BPS, TS_IN_MS_DIGITS } from "./constant";
 
-import { SignerInfo, ATAResult, SwapAmount } from "./types";
+import { SignerInfo, ATAResult, SwapAmount, State, IVault } from "./types";
 
 export function isKp(kp: PublicKey | Keypair) {
   return kp instanceof Keypair || "_keypair" in kp;
@@ -153,4 +153,24 @@ export const spinUntil = async (
   }
 
   return;
+};
+
+const toState = (state: string): State => {
+  switch (state.toLowerCase()) {
+    case "deposit":
+      return State.Deposit;
+    case "live":
+      return State.Live;
+    case "redeem":
+      return State.Redeem;
+    case "withdraw":
+      return State.Withdraw;
+    default:
+      return State.Inactive;
+  }
+};
+
+export const toIVault = (vault: any): IVault => {
+  vault.state = toState(Object.keys(vault.state)[0]);
+  return vault as IVault;
 };

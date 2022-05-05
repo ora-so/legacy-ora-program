@@ -66,8 +66,8 @@ pub struct SaberLpStrategyV0 {
     pub token_a: Pubkey,
     // add saber swap pool info for verification
     pub token_b: Pubkey,
-    //
-    // todo: add slippaage guardrails in swaps?
+    // todo: add slippage guardrails in swaps?
+    // todo: add other metadata about the pool?
 }
 
 // todo: make sure all accounts are validated?

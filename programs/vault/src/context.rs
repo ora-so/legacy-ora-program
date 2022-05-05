@@ -21,6 +21,7 @@ pub struct InitializeSaberStrategy<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
+    // todo: extend seeds for address derivation
     #[account(
         init,
         seeds = [
@@ -50,6 +51,7 @@ pub struct InitializeVault<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
+    // todo: greatly restrictive seeds rn
     // note: might want to revisit these PDA seeds. mainly the authority key since an authority could
     // change over time. further, this design is limiting because it assumes a 1-1 mapping between
     // authority address and vault.
@@ -61,7 +63,7 @@ pub struct InitializeVault<'info> {
         ],
         bump,
         payer = authority,
-        space = size_of::<Vault>(),
+        space = 8 + size_of::<Vault>(),
     )]
     pub vault: Box<Account<'info, Vault>>,
 

@@ -1,6 +1,6 @@
-use {crate::error::ErrorCode, anchor_lang::prelude::*};
+use anchor_lang::prelude::*;
 
-pub const RECEIPT_SIZE: usize = 8 + 1 + 1 + 8 + 8 + 32;
+pub const RECEIPT_SIZE: usize = 8 + 1 + 8 + 8 + 32;
 
 /**
  * A receipt is created for a deposit such that we can keep track of who
@@ -22,8 +22,6 @@ pub const RECEIPT_SIZE: usize = 8 + 1 + 1 + 8 + 8 + 32;
 pub struct Receipt {
     /// bump
     pub bump: u8,
-    /// attribute explicitly saying whether or not an account has been initialized
-    pub intialized: bool,
     /// marginal amount deposited into the vault
     pub amount: u64,
     /// cumulative amount deposited into the vault for a
@@ -34,13 +32,6 @@ pub struct Receipt {
 }
 
 impl Receipt {
-    /**
-     * we should only init the account once. explicitly throw an error if someone tries to re-init an receipt PDA account that
-     * has already be created. this is needed because of the `init_if_needed` feature in Anchor. we should not recreate an account
-     * that represents a deposit by someone else.
-     *
-     * todo: explicitly test this
-     */
     pub fn init(
         &mut self,
         bump: u8,
@@ -48,10 +39,7 @@ impl Receipt {
         cumulative: u64,
         depositor: &Pubkey,
     ) -> ProgramResult {
-        require!(!self.intialized, ErrorCode::AccountAlreadyInitialized);
-
         self.bump = bump;
-        self.intialized = true;
         self.amount = amount;
         self.cumulative = cumulative;
         self.depositor = *depositor;

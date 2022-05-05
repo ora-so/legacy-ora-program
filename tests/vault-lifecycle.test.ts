@@ -372,7 +372,6 @@ describe("vault", () => {
       amountB: amountB,
       minOut,
       swapAccount: stableSwapAccount.publicKey,
-      mint: collateralB.publicKey,
     } as InvestConfig);
 
     const vaultAlphaTokenBalanceAfter = await client.fetchTokenBalance(
@@ -393,26 +392,18 @@ describe("vault", () => {
     //   addr
     // );
 
-    // // at least amount invested with slippage
-
-    // const minAmountOut = withSlippage(
-    //   depositorAlphaTokenBalanceBefore + depositorBetaTokenBalanceBefore,
-    //   slippage
-    // );
-    // console.log("minAmountOut: ", minAmountOut);
-
-    // const vaultAfter = await client.fetchVault(addr);
+    const vaultAfter = await client.fetchVault(vaultAddress);
+    console.log(
+      "vaultAfter.alpha.invested.toNumber(): ",
+      vaultAfter.alpha.invested.toNumber()
+    );
+    console.log(
+      "vaultAfter.beta.invested.toNumber(): ",
+      vaultAfter.beta.invested.toNumber()
+    );
 
     // expect(vaultAfter.alpha.invested.toNumber() > 0).to.be.true;
     // expect(vaultAfter.beta.invested.toNumber() > 0).to.be.true;
-
-    // // todo balances?
-    // console.log("vaultAlphaTokenBalanceAfter: ", vaultAlphaTokenBalanceAfter);
-    // console.log("vaultBetaTokenBalanceAfter: ", vaultBetaTokenBalanceAfter);
-    // // lp is equal to number of assets deposited?
-    // console.log("vaultPoolLpToken: ", vaultPoolLpToken);
-    // // depositorAlphaTokenBalanceBefore >= alphaInvested
-    // // depositorBetaTokenBalanceBefore >= betaInvested
   });
 
   // it("Redeem Saber LP tokens for mints in the vault", async () => {

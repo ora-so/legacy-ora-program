@@ -210,9 +210,3 @@ pub mod vault {
 pub fn docs() -> u64 {
     return 0;
 }
-
-// lifecycle
-// same mints for all tokens, since tied to underlying saber pools?
-
-// create vault with all the attributes
-// deposit
