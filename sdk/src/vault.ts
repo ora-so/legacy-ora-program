@@ -37,6 +37,7 @@ import {
   ONE_U64,
   ZERO_U64,
   SOL_KEY_STR,
+  ZERO_ORCA_U64,
 } from "./common/constant";
 import { PriceClient } from "./common/price";
 import {
@@ -2360,10 +2361,9 @@ export const generatePoolConfigForVault = async (
   );
   instructionData = extendInstructionData(instructionData, vaultLp);
 
-  const zero_orcau64 = new OrcaU64(ZERO_U64, 0);
-  let amountTokenA: OrcaU64 = zero_orcau64;
-  let amountTokenB: OrcaU64 = zero_orcau64;
-  let poolTokenAmount: OrcaU64 = zero_orcau64;
+  let amountTokenA: OrcaU64 = ZERO_ORCA_U64;
+  let amountTokenB: OrcaU64 = ZERO_ORCA_U64;
+  let poolTokenAmount: OrcaU64 = ZERO_ORCA_U64;
 
   if (isDeposit) {
     const { maxTokenAIn, maxTokenBIn, minPoolTokenAmountOut } =
