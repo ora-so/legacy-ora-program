@@ -1,7 +1,4 @@
-use crate::{
-    error::ErrorCode,
-    state::{HasVault, State},
-};
+use crate::{error::ErrorCode, state::HasVault};
 use anchor_lang::prelude::*;
 
 pub trait Swapper<'info> {
@@ -15,7 +12,10 @@ pub fn handle<'info, T: Swapper<'info> + HasVault>(
     min_amount_out: u64,
 ) -> ProgramResult {
     ctx.accounts.vault_mut().try_transition()?;
-    require!(ctx.accounts.vault().can_perform_swap(), ErrorCode::InvalidVaultState);
+    require!(
+        ctx.accounts.vault().can_perform_swap(),
+        ErrorCode::InvalidVaultState
+    );
 
     ctx.accounts.swap(bump, amount_in, min_amount_out)
 }

@@ -1,32 +1,25 @@
 pub mod external;
 
 // todo: figure out how to get rid of the double error code import (right now * is due to saber's unwrap_or_err method)
-use crate::error::ErrorCode;
+// use crate::error::ErrorCode;
 use crate::{
-    constant::{FARM_VAULT_SEED, GLOBAL_STATE_SEED, MAX_BIPS, STRATEGY_SEED, VAULT_SEED},
+    constant::{FARM_VAULT_SEED, GLOBAL_STATE_SEED, STRATEGY_SEED, VAULT_SEED},
     convert_lp::Converter,
     error::ErrorCode::*,
     harvest::Harvester,
     init_strategy::StrategyInitializer,
     init_user_farm::FarmInitializer,
     invest::{verify_investment, Invest},
-    redeem::{verify_received, Redeem, SwapConfig},
+    redeem::{Redeem, SwapConfig},
     revert_lp::Reverter,
-    state::{Asset, GlobalProtocolState, HasVault, StrategyFlag, Vault},
+    state::{GlobalProtocolState, HasVault, StrategyFlag, Vault},
     swap::Swapper,
-    util::{
-        assert_is_ata, create_or_allocate_account_raw, get_spl_account, get_spl_amount,
-        transfer_tokens, try_from_slice_checked,
-    },
+    util::{create_or_allocate_account_raw, get_spl_amount, transfer_tokens},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::TokenAccount;
 use anchor_spl::token::{Mint, Token};
-use bytemuck::{Pod, Zeroable};
 use external::*;
-use solana_program::program_pack::Pack;
-use spl_token::state::Account as SplAccount;
-use std::convert::TryInto;
 use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
 use vipers::unwrap_or_err;
@@ -91,7 +84,7 @@ impl OrcaStrategyDataV0 {
 
     // call during init_user_farm
     pub fn assign_farm_vault(&mut self, farm_vault: &Pubkey) -> Result<(), ProgramError> {
-        /// farm vault can only be assigned once per vault lifetime
+        // farm vault can only be assigned once per vault lifetime
         match self.farm_vault {
             Some(_) => return Err(CannotReinstantiateFarmVault.into()),
             None => {
@@ -492,57 +485,60 @@ impl<'info> Redeem<'info> for RedeemOrca<'info> {
         // map pool tokens A & B to vault tranche assets
         let vault_alpha_mint = self.vault.alpha.mint;
         let vault_beta_mint = self.vault.beta.mint;
-        let (alpha_asset, beta_asset) = match (
-            *source_token_a_account_info.key,
-            *source_token_b_account_info.key,
-        ) {
-            (vault_alpha_mint, vault_beta_mint) => {
-                let _alpha = SwapEndpoints {
-                    user: source_token_a_account_info,
-                    pool: from_token_a_account_info,
-                };
 
-                let _beta = SwapEndpoints {
-                    user: source_token_b_account_info,
-                    pool: from_token_b_account_info,
-                };
+        let alpha_asset: SwapEndpoints;
+        let beta_asset: SwapEndpoints;
 
-                (_alpha, _beta)
-            }
-            (vault_beta_mint, vault_alpha_mint) => {
-                let _alpha = SwapEndpoints {
-                    user: source_token_b_account_info,
-                    pool: from_token_b_account_info,
-                };
+        // todo: migrate to match arm
+        if *source_token_a_account_info.key == vault_alpha_mint
+            && *source_token_b_account_info.key == vault_beta_mint
+        {
+            alpha_asset = SwapEndpoints {
+                user: source_token_a_account_info,
+                pool: from_token_a_account_info,
+            };
 
-                let _beta = SwapEndpoints {
-                    user: source_token_a_account_info,
-                    pool: from_token_a_account_info,
-                };
+            beta_asset = SwapEndpoints {
+                user: source_token_b_account_info,
+                pool: from_token_b_account_info,
+            };
+        } else if *source_token_a_account_info.key == vault_beta_mint
+            && *source_token_b_account_info.key == vault_alpha_mint
+        {
+            alpha_asset = SwapEndpoints {
+                user: source_token_b_account_info,
+                pool: from_token_b_account_info,
+            };
 
-                (_alpha, _beta)
-            }
-            _ => return Err(PublicKeyMismatch.into()),
-        };
+            beta_asset = SwapEndpoints {
+                user: source_token_a_account_info,
+                pool: from_token_a_account_info,
+            };
+        } else {
+            return Err(PublicKeyMismatch.into());
+        }
 
         let user_source: AccountInfo<'info>;
         let pool_source: AccountInfo<'info>;
         let user_destination: AccountInfo<'info>;
         let pool_destination: AccountInfo<'info>;
 
-        if _swap_config.alpha_to_beta {
+        match _swap_config.alpha_to_beta {
             // swap for alpha for beta
-            user_source = alpha_asset.user;
-            pool_source = alpha_asset.pool;
-            user_destination = beta_asset.user;
-            pool_destination = beta_asset.pool;
-        } else {
+            true => {
+                user_source = alpha_asset.user;
+                pool_source = alpha_asset.pool;
+                user_destination = beta_asset.user;
+                pool_destination = beta_asset.pool;
+            }
             // ^_swap_config.alpha_to_beta; swap for beta for alpha
-            user_source = beta_asset.user;
-            pool_source = beta_asset.pool;
-            user_destination = alpha_asset.user;
-            pool_destination = alpha_asset.pool;
-        }
+            false => {
+                user_source = beta_asset.user;
+                pool_source = beta_asset.pool;
+                user_destination = alpha_asset.user;
+                pool_destination = alpha_asset.pool;
+            }
+        };
 
         let vault_signer_seeds =
             generate_vault_seeds!(*self.authority.key.as_ref(), self.vault.bump);

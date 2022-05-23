@@ -6,7 +6,7 @@ use crate::{
 };
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, Token, TokenAccount};
+use anchor_spl::token::Token;
 use std::mem::size_of;
 
 #[derive(Accounts)]

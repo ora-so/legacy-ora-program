@@ -1,17 +1,13 @@
 use crate::{
     constant::{GLOBAL_STATE_SEED, STRATEGY_SEED, VAULT_SEED},
-    error::ErrorCode,
     init_strategy::StrategyInitializer,
     invest::{verify_investment, Invest},
     redeem::{verify_received, Redeem, SwapConfig},
-    state::{Asset, GlobalProtocolState, HasVault, StrategyFlag, Vault},
-    util::{assert_is_ata, try_from_slice_checked},
+    state::{GlobalProtocolState, HasVault, StrategyFlag, Vault},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::TokenAccount;
 use anchor_spl::token::{Mint, Token};
-use bytemuck::{Pod, Zeroable};
-use spl_token::state::Account as SplAccount;
 use stable_swap_anchor::{Deposit, SwapOutput, SwapToken, SwapUserContext, Withdraw};
 use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
@@ -319,7 +315,7 @@ impl<'info> Redeem<'info> for RedeemSaber<'info> {
     }
 
     // todo
-    fn adjust_returns(&mut self, swap_config: Option<SwapConfig>) -> ProgramResult {
+    fn adjust_returns(&mut self, _swap_config: Option<SwapConfig>) -> ProgramResult {
         Ok(())
     }
 }

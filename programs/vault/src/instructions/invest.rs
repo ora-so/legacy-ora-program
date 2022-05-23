@@ -1,7 +1,7 @@
 use crate::{
     error::ErrorCode,
-    state::{Asset, GlobalProtocolState, HasVault, State, StrategyFlag, Vault},
-    util::{assert_is_ata, try_from_slice_checked},
+    state::{Asset, HasVault, State, Vault},
+    util::assert_is_ata,
 };
 use anchor_lang::prelude::*;
 use spl_token::state::Account as SplAccount;
@@ -76,7 +76,8 @@ pub fn handle<'info, T: Invest<'info> + HasVault>(
 
     ctx.accounts.verify_junior_investment(investable_a)?;
     ctx.accounts.verify_senior_investment(investable_b)?;
-    ctx.accounts.invest(investable_a, investable_b, 0)?;
+    ctx.accounts
+        .invest(investable_a, investable_b, min_tokens_back)?;
 
     Ok(())
 }

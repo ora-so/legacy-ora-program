@@ -1,5 +1,3 @@
-use borsh::BorshDeserialize;
-use solana_program::borsh::try_from_slice_unchecked;
 use {
     crate::{
         constant::{HISTORY_SEED, RECEIPT_SEED},
@@ -12,7 +10,6 @@ use {
             clock,
             program::{invoke, invoke_signed},
             program_memory::sol_memcmp,
-            program_option::COption,
             program_pack::{IsInitialized, Pack},
             pubkey::PUBKEY_BYTES,
             system_instruction,
@@ -22,30 +19,15 @@ use {
     anchor_spl::token::{mint_to, transfer, MintTo, Transfer},
     spl_associated_token_account::get_associated_token_address,
     spl_token::state::Account as SplAccount,
-    std::{convert::TryInto, slice::Iter},
+    std::convert::TryInto,
 };
-
-pub fn get_spl_amount<'a>(token_account: &AccountInfo<'a>) -> OraResult<u64> {
-    let spl_account = SplAccount::unpack_from_slice(&token_account.data.borrow()).unwrap();
-    Ok(spl_account.amount)
-}
 
 pub fn get_spl_account<'a>(token_account: &AccountInfo<'a>) -> OraResult<SplAccount> {
     Ok(SplAccount::unpack_from_slice(&token_account.data.borrow()).unwrap())
 }
 
-pub fn try_from_slice_checked<T: BorshDeserialize>(
-    data: &[u8],
-    // data_type: Key,
-    data_size: usize,
-) -> Result<T, ProgramError> {
-    if data.len() != data_size {
-        return Err(ErrorCode::DataTypeMismatch.into());
-    }
-
-    let result: T = try_from_slice_unchecked(data)?;
-
-    Ok(result)
+pub fn get_spl_amount<'a>(token_account: &AccountInfo<'a>) -> OraResult<u64> {
+    Ok(get_spl_account(&token_account)?.amount)
 }
 
 pub fn get_current_timestamp() -> Result<u64, ProgramError> {
@@ -78,19 +60,6 @@ pub fn assert_keys_equal(key1: Pubkey, key2: Pubkey) -> Result<(), ProgramError>
     } else {
         Ok(())
     }
-}
-
-pub fn assert_derivation(
-    program_id: &Pubkey,
-    account_key: &Pubkey,
-    path: &[&[u8]],
-) -> Result<u8, ProgramError> {
-    let (key, bump) = Pubkey::find_program_address(&path, program_id);
-    if key != *account_key {
-        return Err(ErrorCode::DerivedKeyInvalid.into());
-    }
-
-    Ok(bump)
 }
 
 /// Create account almost from scratch, lifted from

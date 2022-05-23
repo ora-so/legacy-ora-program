@@ -14,8 +14,6 @@ use adapters::*;
 use error::ErrorCode;
 use instructions::*;
 use state::{GlobalProtocolState, VaultConfig};
-use std::borrow::BorrowMut;
-use std::ops::DerefMut;
 
 declare_id!("56YRTVX6MNrpQgnGQbzAq7xPyeqyY9ShDrpRNkyMpUgj");
 

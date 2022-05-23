@@ -2,7 +2,7 @@ use anchor_spl::token::TokenAccount;
 use {
     crate::{
         error::ErrorCode,
-        state::{HasVault, State, Vault},
+        state::{HasVault, State},
     },
     anchor_lang::prelude::*,
 };

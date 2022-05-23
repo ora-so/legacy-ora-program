@@ -1,5 +1,3 @@
-use crate::{constant::VAULT_SEED, error::ErrorCode, state::HasVault};
-
 macro_rules! generate_vault_seeds {
     ($a:expr, $b:expr) => {{
         &[VAULT_SEED.as_bytes(), $a.as_ref(), &[$b]]

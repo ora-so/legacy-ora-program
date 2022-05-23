@@ -1,6 +1,5 @@
 use {
     anchor_lang::prelude::*,
-    anchor_spl::token::Token,
     borsh::{BorshDeserialize, BorshSerialize},
     solana_program::{
         instruction::Instruction, program::invoke_signed, system_program::ID as SYSTEM_PROGRAM_ID,
