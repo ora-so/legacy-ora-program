@@ -1,6 +1,5 @@
 use anchor_lang::prelude::*;
-
-pub const RECEIPT_SIZE: usize = 8 + 1 + 8 + 8 + 32;
+use std::result::Result;
 
 /**
  * A receipt is created for a deposit such that we can keep track of who
@@ -38,7 +37,7 @@ impl Receipt {
         amount: u64,
         cumulative: u64,
         depositor: &Pubkey,
-    ) -> ProgramResult {
+    ) -> Result<(), ProgramError> {
         self.bump = bump;
         self.amount = amount;
         self.cumulative = cumulative;

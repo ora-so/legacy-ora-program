@@ -1,12 +1,92 @@
-use {
-    crate::{
-        context::Deposit,
-        error::ErrorCode,
-        state::{asset::Asset, deposit::history::History, vault::State},
-        util::transfer_with_verified_ata,
-    },
-    anchor_lang::prelude::*,
+use crate::{
+    constant::{GLOBAL_STATE_SEED, HISTORY_SEED, RECEIPT_SEED, VAULT_SEED},
+    error::ErrorCode,
+    state::{Asset, GlobalProtocolState, History, Receipt, State, Vault},
+    util::transfer_with_verified_ata,
 };
+
+use anchor_lang::prelude::*;
+use anchor_spl::token::{Mint, Token, TokenAccount};
+use std::mem::size_of;
+
+#[derive(Accounts)]
+#[instruction(deposit_index: u64)]
+pub struct Deposit<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    /// CHECK: read-only account to validate vault address
+    pub authority: UncheckedAccount<'info>,
+
+    #[account(
+        seeds = [GLOBAL_STATE_SEED.as_bytes()],
+        bump,
+    )]
+    pub global_protocol_state: Box<Account<'info, GlobalProtocolState>>,
+
+    #[account(
+        mut,
+        seeds = [
+            VAULT_SEED.as_bytes(),
+            authority.key().to_bytes().as_ref()
+        ],
+        bump,
+        constraint = vault.authority == authority.key(),
+    )]
+    pub vault: Box<Account<'info, Vault>>,
+
+    #[account(
+        init,
+        seeds = [
+            RECEIPT_SEED.as_bytes(),
+            vault.key().to_bytes().as_ref(),
+            mint.key().to_bytes().as_ref(),
+            &deposit_index.to_le_bytes()
+        ],
+        bump,
+        payer = payer,
+        space = 8 + size_of::<Receipt>(),
+    )]
+    pub receipt: Box<Account<'info, Receipt>>,
+
+    #[account(
+        init_if_needed,
+        seeds = [
+            HISTORY_SEED.as_bytes(),
+            vault.key().to_bytes().as_ref(),
+            mint.key().to_bytes().as_ref(),
+            payer.key().to_bytes().as_ref(),
+        ],
+        bump,
+        payer = payer,
+        space = 8 + size_of::<History>(),
+    )]
+    pub history: Box<Account<'info, History>>,
+
+    /// CHECK: can be wrapped wSOL, so not a Mint
+    #[account(mut)]
+    pub mint: UncheckedAccount<'info>,
+
+    // todo: any other validation?
+    /// CHECK: can be wrapped wSOL, so not a TokenAccount. Validation done via Token Program CPI.
+    #[account(mut)]
+    pub source_ata: UncheckedAccount<'info>,
+
+    /// CHECK: create and validate JIT in instruction. Validation done via Token Program CPI.
+    #[account(mut)]
+    pub destination_ata: UncheckedAccount<'info>,
+
+    /// =============== PROGRAM ACCOUNTS ===============
+    pub system_program: Program<'info, System>,
+
+    pub token_program: Program<'info, Token>,
+
+    /// CHECK: validate expected vs actual address
+    #[account(address = spl_associated_token_account::ID)]
+    pub ata_program: UncheckedAccount<'info>,
+
+    pub rent: Sysvar<'info, Rent>,
+}
 
 /// Allow user to deposit amount of mint into the vault. A valid deposit will adhere
 /// to the following conditions:
@@ -94,9 +174,10 @@ pub fn verify_deposit_for_user(
     asset: &Asset,
     amount: u64,
 ) -> std::result::Result<(), ProgramError> {
+    history.deposit(amount)?;
+
     match asset.user_cap {
         Some(user_cap) => {
-            history.deposit(amount)?;
             require!(
                 history.cumulative <= user_cap,
                 ErrorCode::DepositExceedsUserCap

@@ -1,8 +1,22 @@
-use {
-    crate::{error::ErrorCode, state::asset::Asset, util::get_current_timestamp},
-    anchor_lang::prelude::*,
-    std::result::Result,
-};
+use crate::{error::ErrorCode, state::asset::Asset, util::get_current_timestamp};
+use anchor_lang::prelude::*;
+use std::result::Result;
+
+#[account]
+#[derive(Debug, Default, PartialEq)]
+pub struct FarmVault {}
+
+pub trait HasVault {
+    fn vault(&self) -> &Vault;
+    fn vault_mut(&mut self) -> &mut Vault;
+}
+
+#[repr(C)]
+#[derive(AnchorSerialize, AnchorDeserialize, Debug, Default, PartialEq)]
+pub struct AssetConfig {
+    pub user_cap: Option<u64>,
+    pub asset_cap: Option<u64>,
+}
 
 #[repr(C)]
 #[derive(AnchorSerialize, AnchorDeserialize, Debug, Default, PartialEq)]
@@ -10,6 +24,8 @@ pub struct VaultConfig {
     pub strategy: Pubkey,
     pub authority: Pubkey,
     pub strategist: Pubkey,
+    pub alpha: AssetConfig,
+    pub beta: AssetConfig,
     pub fixed_rate: u16,
     pub start_at: u64,
     pub invest_at: u64,
@@ -102,8 +118,12 @@ impl Vault {
         self.strategist = strategist;
     }
 
-    pub fn vault_has_deposits(&mut self) -> bool {
+    pub fn vault_has_deposits(&self) -> bool {
         return self.alpha.has_deposits() && self.beta.has_deposits();
+    }
+
+    pub fn state(&self) -> State {
+        return self.state;
     }
 
     pub fn can_disperse_funds(&mut self) -> bool {
@@ -191,9 +211,6 @@ impl Vault {
             );
 
             self.excess = Some(*mint);
-        } else {
-            // rare case that we have no excess investments. no need to process claims.
-            self.finalize_claims();
         }
 
         Ok(())
@@ -212,9 +229,7 @@ impl Vault {
             return Ok(());
         }
 
-        // one side of the vault should have no extra assets
-        // todo: is this valid assumption? if not, we should move
-        // this data to the asset struct itself.
+        // todo: valid assumption? one side of the vault should have no extra assets
         require!(
             self.alpha.excess == 0 || self.beta.excess == 0,
             ErrorCode::DualSidedExcesssNotPossible
@@ -245,5 +260,10 @@ impl Vault {
         return self.claims_processed
             && self.state != State::Deposit
             && self.state != State::Inactive;
+    }
+
+    pub fn can_perform_swap(&self) -> bool {
+        // withdraw too in case not everything fit within redeem?
+        return self.state != State::Live || self.state != State::Redeem;
     }
 }

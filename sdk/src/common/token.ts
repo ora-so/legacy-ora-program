@@ -19,7 +19,7 @@ import {
   TokenInfo,
 } from "@solana/spl-token-registry";
 
-import { ATAResult, ATAsResult } from "./types";
+import { CompositeATAResult } from "./types";
 import { ZERO_U64 } from "./constant";
 
 export type PubKeyString = PublicKey | string;
@@ -78,53 +78,25 @@ export const getOrCreateATA = async (
   owner: PublicKey,
   payer: PublicKey,
   conn: Connection
-): Promise<ATAResult> => {
+): Promise<CompositeATAResult> => {
   const address = await findAssociatedTokenAddress(owner, mint);
   if (await conn.getAccountInfo(address)) {
-    return { address, instruction: null };
+    return { address, instructions: [], cleanup: [], signers: [] };
   } else {
     return {
       address,
-      instruction: createAssociatedTokenAccount(
-        mint,
-        address,
-        owner, // owner
-        payer // payer
-      ),
-    };
-  }
-};
-
-export const getOrCreateATAs = async (
-  mints: PublicKey[],
-  owner: PublicKey,
-  payer: PublicKey,
-  conn: Connection
-): Promise<ATAsResult> => {
-  const atas: ATAsResult = {
-    addresses: {},
-    instructions: [],
-  };
-
-  for (const mint of mints) {
-    const address = await findAssociatedTokenAddress(owner, mint);
-    if (await conn.getAccountInfo(address)) {
-      atas.addresses[mint.toBase58()] = address;
-      atas.instructions.push(null);
-    } else {
-      atas.addresses[mint.toBase58()] = address;
-      atas.instructions.push(
+      instructions: [
         createAssociatedTokenAccount(
           mint,
           address,
           owner, // owner
           payer // payer
-        )
-      );
-    }
+        ),
+      ],
+      cleanup: [],
+      signers: [],
+    };
   }
-
-  return atas;
 };
 
 export const initTokenAccount = async (
@@ -150,10 +122,7 @@ export const initTokenAccount = async (
           ),
         ];
 
-  return [
-    ...(tokenATA.instruction ? [tokenATA.instruction] : []),
-    ...fundTransaction,
-  ];
+  return [...tokenATA.instructions, ...fundTransaction];
 };
 
 export const mintTokens = async (

@@ -1,25 +1,52 @@
+use borsh::BorshDeserialize;
+use solana_program::borsh::try_from_slice_unchecked;
 use {
     crate::{
         constant::{HISTORY_SEED, RECEIPT_SEED},
-        error::ErrorCode,
+        error::{ErrorCode, OraResult},
         id,
     },
     anchor_lang::{
         prelude::*,
         solana_program::{
             clock,
-            program::invoke_signed,
+            program::{invoke, invoke_signed},
             program_memory::sol_memcmp,
+            program_option::COption,
             program_pack::{IsInitialized, Pack},
             pubkey::PUBKEY_BYTES,
             system_instruction,
+            system_program::ID as SYSTEM_PROGRAM_ID,
         },
     },
     anchor_spl::token::{mint_to, transfer, MintTo, Transfer},
     spl_associated_token_account::get_associated_token_address,
     spl_token::state::Account as SplAccount,
-    std::convert::TryInto,
+    std::{convert::TryInto, slice::Iter},
 };
+
+pub fn get_spl_amount<'a>(token_account: &AccountInfo<'a>) -> OraResult<u64> {
+    let spl_account = SplAccount::unpack_from_slice(&token_account.data.borrow()).unwrap();
+    Ok(spl_account.amount)
+}
+
+pub fn get_spl_account<'a>(token_account: &AccountInfo<'a>) -> OraResult<SplAccount> {
+    Ok(SplAccount::unpack_from_slice(&token_account.data.borrow()).unwrap())
+}
+
+pub fn try_from_slice_checked<T: BorshDeserialize>(
+    data: &[u8],
+    // data_type: Key,
+    data_size: usize,
+) -> Result<T, ProgramError> {
+    if data.len() != data_size {
+        return Err(ErrorCode::DataTypeMismatch.into());
+    }
+
+    let result: T = try_from_slice_unchecked(data)?;
+
+    Ok(result)
+}
 
 pub fn get_current_timestamp() -> Result<u64, ProgramError> {
     // i64 -> u64 ok to unwrap
@@ -53,25 +80,44 @@ pub fn assert_keys_equal(key1: Pubkey, key2: Pubkey) -> Result<(), ProgramError>
     }
 }
 
+pub fn assert_derivation(
+    program_id: &Pubkey,
+    account_key: &Pubkey,
+    path: &[&[u8]],
+) -> Result<u8, ProgramError> {
+    let (key, bump) = Pubkey::find_program_address(&path, program_id);
+    if key != *account_key {
+        return Err(ErrorCode::DerivedKeyInvalid.into());
+    }
+
+    Ok(bump)
+}
+
 /// Create account almost from scratch, lifted from
 /// <https://github.com/metaplex-foundation/metaplex-program-library/blob/master/auction-house/program/src/utils.rs>
 /// <https://github.com/solana-labs/solana-program-library/blob/7d4873c61721aca25464d42cc5ef651a7923ca79/associated-token-account/program/src/processor.rs#L51-L98>
 #[inline(always)]
 pub fn create_or_allocate_account_raw<'a>(
     program_id: Pubkey,
+    reassign_ownership: bool,
     new_account_info: &AccountInfo<'a>,
     rent_sysvar_info: &AccountInfo<'a>,
     system_program_info: &AccountInfo<'a>,
     payer_info: &AccountInfo<'a>,
     size: usize,
+    initial_lamports: usize,
     signer_seeds: &[&[u8]],
     new_acct_seeds: &[&[u8]],
 ) -> std::result::Result<(), ProgramError> {
     let rent = &Rent::from_account_info(rent_sysvar_info)?;
-    let required_lamports = rent
+    let mut required_lamports = rent
         .minimum_balance(size)
         .max(1)
         .saturating_sub(new_account_info.lamports());
+
+    required_lamports = required_lamports
+        .checked_add(initial_lamports.try_into().unwrap())
+        .ok_or(ErrorCode::InsufficientTokenBalance)?;
 
     if required_lamports > 0 {
         msg!("Transfer {} lamports to the new account", required_lamports);
@@ -103,13 +149,15 @@ pub fn create_or_allocate_account_raw<'a>(
         &[&new_acct_seeds],
     )?;
 
-    msg!("Assign the account to the owning program");
-    invoke_signed(
-        &system_instruction::assign(new_account_info.key, &program_id),
-        accounts,
-        &[&new_acct_seeds],
-    )?;
-    msg!("Completed assignation!");
+    if reassign_ownership {
+        msg!("Assign the account to the owning program");
+        invoke_signed(
+            &system_instruction::assign(new_account_info.key, &program_id),
+            accounts,
+            &[&new_acct_seeds],
+        )?;
+        msg!("Completed assignation!");
+    }
 
     Ok(())
 }
@@ -291,37 +339,6 @@ pub fn mint_with_verified_ata<'info>(
     Ok(())
 }
 
-/**
- * Calculate amount after slippage in basis points, 10_000 is upper bound.
- *
- * Sample usage:
- *
- * let total = 100_000;
- * let slippage_tolerance = 100; // 100 bips, 1%
- *
- * let result = with_slippage(
- *   100_000,
- *   slippage_tolerance,
- * )?;
- *
- * require!(result == 99_000, "oh no");
- *
- */
-pub fn with_slippage(amount: u64, slippage: u16) -> std::result::Result<u64, ProgramError> {
-    let total = 10_000_usize;
-    let slippage_inverse = total
-        .checked_sub(slippage.into())
-        .ok_or_else(math_error!())?;
-
-    let result = (amount as usize)
-        .checked_mul(slippage_inverse)
-        .ok_or_else(math_error!())?
-        .checked_div(total)
-        .ok_or_else(math_error!())?;
-
-    Ok(result as u64)
-}
-
 pub fn get_receipt_address_and_bump_seed(
     vault: &Pubkey,
     asset: &Pubkey,
@@ -366,6 +383,111 @@ pub fn assert_valid_pda(
     assert_owned_by(account_info, &id())?;
     assert_keys_equal(account_info.key(), *expected_pubkey)?;
     require!(is_valid_bump, ErrorCode::BumpMismatch);
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct TransferLamports<'info> {
+    /// CHECK: Verified via system_program CPI call
+    pub from: AccountInfo<'info>,
+    /// CHECK: Verified via system_program CPI call
+    pub to: AccountInfo<'info>,
+    /// CHECK: Verified via system_program CPI call
+    pub system_program: AccountInfo<'info>,
+}
+
+pub fn transfer_from_signer<'a, 'b, 'c, 'info>(
+    ctx: CpiContext<'a, 'b, 'c, 'info, TransferLamports<'info>>,
+    amount: u64,
+) -> ProgramResult {
+    invoke(
+        &solana_program::system_instruction::transfer(
+            ctx.accounts.from.key,
+            ctx.accounts.to.key,
+            amount,
+        ),
+        &[
+            ctx.accounts.from,
+            ctx.accounts.to,
+            ctx.accounts.system_program,
+        ],
+    )?;
+
+    Ok(())
+}
+
+pub fn transfer_lamports(
+    source: &AccountInfo<'_>,
+    dest: &AccountInfo<'_>,
+    amount: u64,
+) -> ProgramResult {
+    let amount_after_deduction: u64 = source
+        .lamports()
+        .checked_sub(amount)
+        .ok_or(ErrorCode::InsufficientTokenBalance)?;
+
+    // sub from source
+    **source.lamports.borrow_mut() = amount_after_deduction;
+
+    // add lamports to dest
+    **dest.lamports.borrow_mut() = dest
+        .lamports()
+        .checked_add(amount)
+        .ok_or(ErrorCode::InsufficientTokenBalance)?;
+
+    Ok(())
+}
+
+pub fn transfer_tokens<'info>(
+    source: AccountInfo<'info>,
+    dest: AccountInfo<'info>,
+    authority: AccountInfo<'info>,
+    system_program: AccountInfo<'info>,
+    token_program: AccountInfo<'info>,
+    amount: u64,
+    signer_seeds: &[&[&[u8]]],
+) -> ProgramResult {
+    msg!("source: {:?}", source.key);
+    msg!("source owner: {:?}", source.owner);
+    msg!("dest: {:?}", dest.key);
+    msg!("dest owner: {:?}", dest.owner);
+    msg!("authority: {:?}", authority.key);
+
+    if *source.owner == SYSTEM_PROGRAM_ID && *dest.owner == crate::id() {
+        // source account is owned by system_program and dest is a PDA owned by this program
+        msg!("tranfser SOL with system_program");
+
+        let context = CpiContext::new(
+            system_program.clone(),
+            TransferLamports {
+                from: source,
+                to: dest,
+                system_program,
+            },
+        );
+
+        transfer_from_signer(context.with_signer(signer_seeds), amount)?;
+    } else if *source.owner == crate::id() && *dest.owner == SYSTEM_PROGRAM_ID {
+        // source account is a PDA owned by this program && dest account is owned by system_program
+        msg!("tranfser SOL with direct lamport manipulation");
+
+        transfer_lamports(&source, &dest, amount)?;
+    } else {
+        // use token transfer, decide whether authority is vault or payer
+
+        msg!("transfer CPI");
+        let context = CpiContext::new(
+            token_program,
+            Transfer {
+                from: source,
+                to: dest,
+                authority,
+            },
+        );
+
+        transfer(context.with_signer(signer_seeds), amount)?;
+    }
 
     Ok(())
 }

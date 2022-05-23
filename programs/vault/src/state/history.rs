@@ -1,6 +1,6 @@
-use {crate::error::ErrorCode, anchor_lang::prelude::*, std::result::Result};
-
-pub const HISTORY_SIZE: usize = 8 + 1 + 1 + 8 + 8 + 8;
+use crate::error::ErrorCode;
+use anchor_lang::prelude::*;
+use std::result::Result;
 
 /**
  * Account to track user deposit metadata for any given vault's tranche.

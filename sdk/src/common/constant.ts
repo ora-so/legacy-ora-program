@@ -18,3 +18,5 @@ export const HOUR_IN_MS = MIN_IN_MS * 60;
 export const DAY_IN_MS = HOUR_IN_MS * 24;
 
 export const SABER_LP_STRATEGY = "Saber LP Strategy";
+
+export const SOL_KEY_STR = "So11111111111111111111111111111111111111112";

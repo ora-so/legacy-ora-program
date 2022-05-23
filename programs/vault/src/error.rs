@@ -4,6 +4,9 @@ pub type OraResult<T = ()> = std::result::Result<T, ProgramError>;
 
 #[error]
 pub enum ErrorCode {
+    #[msg("Protocol pausesd")]
+    ProtocolPaused,
+
     #[msg("Math Error")]
     MathError,
     #[msg("PublicKeyMismatch")]
@@ -51,8 +54,8 @@ pub enum ErrorCode {
     InvalidLpMint,
     #[msg("Deposit exceeds user cap")]
     DepositExceedsUserCap,
-    #[msg("Deposit exceeds asset cap")]
-    DepositExceedsAssetCap,
+    #[msg("Asset cap exceeded")]
+    AssetCapExceeded,
     #[msg("Cannot redeem without LP tokens")]
     CannotWithdrawWithoutLpTokens,
 
@@ -63,4 +66,23 @@ pub enum ErrorCode {
 
     #[msg("Dual-sided excesss is not possible")]
     DualSidedExcesssNotPossible,
+
+    #[msg("Derived key invalid")]
+    DerivedKeyInvalid,
+
+    #[msg("Invalid remaining accounts index")]
+    InvalidRemainingAccountsIndex,
+
+    #[msg("Missing required field")]
+    MissingRequiredField,
+    #[msg("Missing required config")]
+    MissingRequiredConfig,
+    #[msg("Cannot reinstantiate farm vault")]
+    CannotReinstantiateFarmVault,
+    #[msg("Missing farm vault")]
+    MissingFarmVault,
+    #[msg("Unexpected authority")]
+    UnexpectedAuthority,
+    #[msg("Decimal mismatch")]
+    DecimalMismatch,
 }

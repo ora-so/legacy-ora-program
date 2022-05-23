@@ -1,33 +1,88 @@
-use {
-    crate::{
-        context::{ProcessClaimInfo, ProcessClaims},
-        error::ErrorCode,
-        util::{
-            assert_valid_pda, get_history_address_and_bump_seed, get_receipt_address_and_bump_seed,
-        },
+use crate::{
+    constant::{GLOBAL_STATE_SEED, VAULT_SEED},
+    error::ErrorCode,
+    state::{vault::Vault, GlobalProtocolState, History, Receipt},
+    util::{
+        assert_valid_pda, get_history_address_and_bump_seed, get_receipt_address_and_bump_seed,
     },
-    anchor_lang::prelude::*,
-    solana_program::account_info::next_account_infos,
-    std::convert::TryInto,
-    vipers::unwrap_int,
 };
+use anchor_lang::prelude::*;
+use solana_program::account_info::next_account_infos;
+use std::convert::TryInto;
+use vipers::unwrap_int;
 
-/**
- * figure out if there is excess on either asset. if not, exit.
- * if excess, save that to vault state. and claims index to most recent index.
- *
- * 1. first time calling - no claims
- * 2. first time calling - claims
- * 3. nth time calling - no claims
- * 4. nth time calling - claims
- *
- * if we found last discrepancy, update claims_processed => true
- * iterate through ctx.remaining_accounts to, verify acccount data, update the users history
- * an instruction that could require A LOT of compute / strategic splitting to fit into
- * account limits.
- * relate n & n+1 accounts for user (deposit, history) -> update vault
- *
- */
+// todo: who can invoke function? authority on vault?
+#[derive(Accounts)]
+pub struct ProcessClaims<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    /// CHECK: read-only account to validate vault address
+    pub authority: UncheckedAccount<'info>,
+
+    #[account(
+        seeds = [GLOBAL_STATE_SEED.as_bytes()],
+        bump,
+    )]
+    pub global_protocol_state: Box<Account<'info, GlobalProtocolState>>,
+
+    #[account(
+        mut,
+        seeds = [
+            VAULT_SEED.as_bytes(),
+            authority.key().to_bytes().as_ref()
+        ],
+        bump,
+        constraint = vault.authority == authority.key(),
+        // constraint = vault.strategist == payer.key()
+    )]
+    pub vault: Box<Account<'info, Vault>>,
+}
+
+#[derive(Accounts)]
+pub struct ProcessClaimInfo<'info> {
+    #[account(mut)]
+    pub receipt: Box<Account<'info, Receipt>>,
+
+    #[account(mut)]
+    pub history: Box<Account<'info, History>>,
+}
+
+///  After investing funds, we will know if there are any excess assets for users to claim.
+///  This can happen when we need to balance both sides of the vault.
+///
+///  in order to process claims, we need to do 2 things:
+///    1. work backwards from the most recent deposit. the goal is to find the deposit that
+///       saturated the vault past the deposited amount.
+///    2. we need to compute the amount every user is entitled to and serialize that on the vault.
+///
+///  @dev the calling client will do most of the work here to figure out what accounts to pass in,
+///       the instruction just verifies correctness. we probably need to bump the compute units of
+///       these instructions.
+///
+///  @dev since there is a limit to how many accounts can be passed to a transaction, it's possible
+///       we'll need to invoke this instruction multiple times. The instruction saves intermediary
+///       state and won't reprocess information when finished.
+///   
+///  @dev after the vaults are finalized and funds are returned, we can close history and claim
+///       accounts to retrieve the rent funds. These can be returned to users or redirected to
+///       the protocol as an additional fee.
+///
+///  todo: refactor comments below
+///  figure out if there is excess on either asset. if not, exit.
+///  if excess, save that to vault state. and claims index to most recent index.
+///
+///  1. first time calling - no claims
+///  2. first time calling - claims
+///  3. nth time calling - no claims
+///  4. nth time calling - claims
+///
+///  if we found last discrepancy, update claims_processed => true
+///  iterate through ctx.remaining_accounts to, verify acccount data, update the users history
+///  an instruction that could require A LOT of compute / strategic splitting to fit into
+///  account limits.
+///  relate n & n+1 accounts for user (deposit, history) -> update vault
+///
 pub fn handle(ctx: Context<ProcessClaims>) -> ProgramResult {
     let vault = &mut ctx.accounts.vault;
     vault.set_excess_if_possible()?;

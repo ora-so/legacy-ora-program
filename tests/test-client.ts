@@ -27,16 +27,25 @@ import {
   toU64,
   spinUntil,
 } from "../sdk";
+import { AssetConfig } from "../sdk/src";
+import { ZERO_U64 } from "../sdk/src/common/constant";
 
 // =======================================================
 // Custom definitions to make interfacing with SDK easier
 // =======================================================
 
+export interface InitVaultConfigForAsset {
+  mint: PublicKey;
+  assetCap?: u64;
+  userCap?: u64;
+}
+
 export interface InitVaultConfig {
+  payer: Keypair;
   strategy: PublicKey;
   strategist?: PublicKey; // possibly use different person than authority
-  alpha: PublicKey;
-  beta: PublicKey;
+  alpha: InitVaultConfigForAsset;
+  beta: InitVaultConfigForAsset;
   fixedRate?: number; // default to 1000 bps
   // default to now
   startAt?: Date;
@@ -77,6 +86,12 @@ export interface InvestConfig {
 // todo
 export interface RedeemConfig {
   payer: Keypair;
+  tokenA: PublicKey;
+  amountA: number;
+  tokenB: PublicKey;
+  amountB: number;
+  minOut: number;
+  swapAccount: PublicKey;
   applyImmediately?: boolean;
 }
 
@@ -141,7 +156,7 @@ export class VaultTestClient extends VaultClient {
   initVault = async (config: InitVaultConfig) => {
     const _strategist = config.strategist
       ? config.strategist
-      : this.authority.publicKey;
+      : config.payer.publicKey;
 
     const _startAtDate = getOrDefault(
       config.startAt,
@@ -157,20 +172,30 @@ export class VaultTestClient extends VaultClient {
     );
 
     const vaultConfig: VaultConfig = {
-      authority: this.authority.publicKey,
+      authority: config.payer.publicKey,
       strategy: config.strategy,
       strategist: _strategist,
-      alpha: config.alpha,
-      beta: config.beta,
+      alpha: {
+        mint: config.alpha.mint,
+        userCap: config.alpha.userCap,
+        assetCap: config.alpha.assetCap,
+      },
+      beta: {
+        mint: config.beta.mint,
+        userCap: config.beta.userCap,
+        assetCap: config.beta.assetCap,
+      },
       fixedRate: getOrDefault(config.fixedRate, DEFAULT_HURDLE_RATE),
       startAt: new u64(getTimestamp(_startAtDate)),
       investAt: new u64(getTimestamp(_investAtDate)),
       redeemAt: new u64(getTimestamp(_redeemAtDate)),
     };
 
-    await this.initializeVault(vaultConfig, this.authority);
+    console.log("vaultConfig: ", vaultConfig);
 
-    const { addr } = await this.generateVaultAddress(this.authority.publicKey);
+    await this.initializeVault(vaultConfig, config.payer);
+
+    const { addr } = await this.generateVaultAddress(config.payer.publicKey);
     this.vaultAddress = addr;
 
     return {
@@ -212,7 +237,7 @@ export class VaultTestClient extends VaultClient {
       await spinUntil(asNumber(vault.investAt), 3, true);
     }
 
-    await this.invest(
+    await this.investSaber(
       {
         tokenA: vault.alpha.mint,
         tokenB: vault.beta.mint,
@@ -231,6 +256,22 @@ export class VaultTestClient extends VaultClient {
   };
 
   redeemFunds = async (config: RedeemConfig) => {
+    const vaultAddress = this.vaultAddress;
+    const vault = await this.fetchVault(vaultAddress);
+
+    // todo
+    const slippage = 0;
+    await this.redeemSaber(
+      {
+        tokenA: vault.alpha.mint,
+        tokenB: vault.alpha.mint,
+        swapAccount: config.swapAccount,
+      },
+      vaultAddress,
+      slippage,
+      config.payer
+    );
+
     return;
   };
 

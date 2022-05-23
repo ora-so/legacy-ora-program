@@ -4,6 +4,7 @@
   "license": "MIT",
   "dependencies": {
     "@ora-protocol/sdk": "file:../sdk",
+    "decimal.js": "^10.3.1",
     "@saberhq/stableswap-sdk": "^1.12.48",
     "@project-serum/anchor": "^0.22.0",
     "@solana/spl-token": "^0.1.8",

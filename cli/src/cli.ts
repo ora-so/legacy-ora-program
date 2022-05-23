@@ -21,8 +21,9 @@ import {
   depositInstruction,
 } from "@saberhq/stableswap-sdk";
 import { SignerWallet } from "@saberhq/solana-contrib";
+import Decimal from "decimal.js";
 
-import { VaultClient } from "../../sdk/src/vault";
+import { toOrcaFarmType, VaultClient } from "../../sdk/src/vault";
 import { loadWalletKey } from "./helpers/account";
 import { executeTx } from "../../sdk/src/common/util";
 import {
@@ -42,6 +43,18 @@ import {
   sendAndConfirmTransactionWithTitle,
 } from "./helpers/saber/pool";
 
+import {
+  getOrca,
+  Network,
+  OrcaFarmConfig,
+  OrcaPoolConfig,
+  OrcaU64,
+} from "@orca-so/sdk";
+import { OrcaPoolParams } from "@orca-so/sdk/dist/model/orca/pool/pool-types";
+import { OrcaFarmParams } from "@orca-so/sdk/dist/model/orca/farm/farm-types";
+import { Orca } from "@orca-so/sdk/dist/public/main/types";
+import { ZERO_U64 } from "../../sdk/src/common/constant";
+
 program.version("0.0.1");
 log.setLevel("info");
 
@@ -52,22 +65,6 @@ export const DEFAULT_TOKEN_DECIMALS = 6;
 // ============================================================================
 // show account data commands
 // ============================================================================
-
-programCommand("ts", false)
-  .option(
-    "-o, --offset <number>",
-    "Optional offset from current timestamp. In seconds."
-  )
-  .action(async (_, cmd) => {
-    const { offset } = cmd.opts();
-
-    let date = new Date();
-    if (offset) {
-      date = addSeconds(date, +offset);
-    }
-
-    console.log("Timestamp (with optional offset): ", date.getTime());
-  });
 
 programCommand("derive_vault")
   .option("-a, --authority <pubkey>", "Authority of the vault")
@@ -87,7 +84,32 @@ programCommand("derive_vault")
     log.info("===========================================");
   });
 
-programCommand("init_strategy")
+programCommand("init_global_protocol_state")
+  .option("-t, --treasury <pubkey>", "Pubkey of the protocol treasury")
+  .option("-e, --execute <boolean>", "Execute transaction or not")
+  .action(async (_, cmd) => {
+    const { keypair, env, treasury, execute } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+
+    const _treasury = new PublicKey(treasury);
+    const _execute = execute === "true" ? true : false;
+
+    const { tx, addr } = await _client.initializeGlobalProtocolState(
+      _treasury,
+      walletKeyPair,
+      _execute
+    );
+
+    log.info("===========================================");
+    log.info(
+      `✅ Initialized global protocol state with public key [${addr.toBase58()}] in tx [${tx}]`
+    );
+    log.info("===========================================");
+  });
+
+programCommand("init_saber_strategy")
   .option(
     "-a, --tokenA <pubkey>",
     "Pubkey of the token A associated with the strategy"
@@ -96,19 +118,28 @@ programCommand("init_strategy")
     "-b, --tokenB <pubkey>",
     "Pubkey of the token B associated with the strategy"
   )
+  .option("-s, --swap <pubkey>", "Pubkey of the saber pool")
+  .option("-lp, --lpToken <pubkey>", "LP token associated with the pool")
+  .option("-e, --execute <boolean>", "Execute transaction or not")
   .action(async (_, cmd) => {
-    const { keypair, env, tokenA, tokenB } = cmd.opts();
+    const { keypair, env, tokenA, tokenB, swap, lpToken, execute } = cmd.opts();
 
     const walletKeyPair: Keypair = loadWalletKey(keypair);
     const _client = createClient(env, walletKeyPair);
 
     const _tokenA = new PublicKey(tokenA);
     const _tokenB = new PublicKey(tokenB);
+    const _swap = new PublicKey(swap);
+    const _lpToken = new PublicKey(lpToken);
+    const _execute = execute === "true" ? true : false;
 
-    const { tx, strategy } = await _client.initializeStrategy(
+    const { tx, strategy } = await _client.initializeSaberStrategy(
       _tokenA,
       _tokenB,
-      walletKeyPair
+      _swap,
+      _lpToken,
+      walletKeyPair,
+      _execute
     );
 
     log.info("===========================================");
@@ -118,40 +149,39 @@ programCommand("init_strategy")
     log.info("===========================================");
   });
 
-programCommand("decode_strategy")
-  .option("-s, --strategy <pubkey>", "Pubkey of the strategy to decode")
+programCommand("init_orca_strategy")
+  .option("-osp, --orcaSwapProgram <pubkey>", "Orca Swap Program")
+  .option("-ofp, --orcaFarmProgram <pubkey>", "Orca Farm Program")
+  .option("-p, --pair <string>", "Orca pool pair (e.g. ORCA_SOL)")
+  .option("-e, --execute <boolean>", "Execute transaction or not")
   .action(async (_, cmd) => {
-    const { keypair, env, strategy } = cmd.opts();
+    const { keypair, env, orcaSwapProgram, orcaFarmProgram, pair, execute } =
+      cmd.opts();
+
+    const _orcaSwapProgram = new PublicKey(orcaSwapProgram);
+    const _orcaFarmProgram = new PublicKey(orcaFarmProgram);
+    const _execute = execute === "true" ? true : false;
 
     const walletKeyPair: Keypair = loadWalletKey(keypair);
     const _client = createClient(env, walletKeyPair);
 
-    const _strategy = new PublicKey(strategy);
+    try {
+      const { tx, strategy } = await _client.initializeOrcaStrategy(
+        _orcaSwapProgram,
+        _orcaFarmProgram,
+        pair,
+        walletKeyPair,
+        _execute
+      );
 
-    const result = await _client.fetchStrategy(_strategy);
-
-    const discriminator = result.data.buffer.slice(0, 8);
-    // const flags = result.data.buffer.slice(8, 16);
-    const flags = result.data.filter((e, i) => i >= 8 && i < 16);
-
-    log.info("result: ", result);
-    log.info("discriminator: ", discriminator);
-    log.info("flags: ", flags);
-
-    const view = new Int8Array(flags);
-    log.info("view: ", view);
-
-    log.info("8: ", result.data.at(8));
-    log.info("9: ", result.data.at(9));
-    log.info("10: ", result.data.at(10));
-    log.info("11: ", result.data.at(11));
-    log.info("12: ", result.data.at(12));
-
-    for (const b of result.data) {
-      console.log(b);
+      log.info("===========================================");
+      log.info(
+        `✅ Created strategy with public key [${strategy.toBase58()}] in tx [${tx}]`
+      );
+      log.info("===========================================");
+    } catch (error: any) {
+      log.error(error);
     }
-
-    log.info("===========================================");
   });
 
 programCommand("init_vault")
@@ -164,7 +194,23 @@ programCommand("init_vault")
     "Pubkey of the strategy used by the vault to invest and redeem funds"
   )
   .option("-aa, --alpha <pubkey>", "Mint of the vault's alpha asset")
+  .option(
+    "-aca, --assetCapA <number>",
+    "Limit the amount of asset A that can be deposited by all users"
+  )
+  .option(
+    "-uca, --userCapA <number>",
+    "Limit the amount of asset A that can be deposited by a single user"
+  )
   .option("-ba, --beta <pubkey>", "Mint of the vault's beta asset")
+  .option(
+    "-acb, --assetCapB <number>",
+    "Limit the amount of asset B that can be deposited by all users"
+  )
+  .option(
+    "-ucb, --userCapB <number>",
+    "Limit the amount of asset B that can be deposited by a single user"
+  )
   .option(
     "-fr, --fixedRate <number>",
     "Fixed rate the senior tranche is guaranteed to recieve, in basis points."
@@ -181,6 +227,7 @@ programCommand("init_vault")
     "-lp, --livePeriod <number>",
     "Duration for which the vault invests funds. In seconds."
   )
+  .option("-e, --execute <boolean>", "Execute transaction or not")
   .action(async (_, cmd) => {
     const {
       keypair,
@@ -188,15 +235,21 @@ programCommand("init_vault")
       strategist,
       strategy,
       alpha,
+      assetCapA,
+      userCapA,
       beta,
+      assetCapB,
+      userCapB,
       fixedRate,
       startAt,
       depositPeriod,
       livePeriod,
+      execute,
     } = cmd.opts();
 
     const walletKeyPair: Keypair = loadWalletKey(keypair);
     const _client = createClient(env, walletKeyPair);
+    const _execute = execute === "true" ? true : false;
 
     // authority defaults to keypair passed in
     let _authority = walletKeyPair.publicKey;
@@ -215,19 +268,32 @@ programCommand("init_vault")
       getOrDefault(+livePeriod, DEFAULT_PERIOD_IN_SECONDS)
     );
 
+    const _assetCapA: u64 | null = assetCapA ? new u64(+assetCapA) : null;
+    const _userCapA: u64 | null = userCapA ? new u64(+userCapA) : null;
+    const _assetCapB: u64 | null = assetCapB ? new u64(+assetCapB) : null;
+    const _userCapB: u64 | null = userCapB ? new u64(+userCapB) : null;
+
     const vaultConfig: VaultConfig = {
       authority: _authority,
       strategy: _strategy,
       strategist: _strategist,
-      alpha: _alpha,
-      beta: _beta,
+      alpha: {
+        mint: _alpha,
+        userCap: _userCapA,
+        assetCap: _assetCapA,
+      },
+      beta: {
+        mint: _beta,
+        userCap: _userCapB,
+        assetCap: _assetCapB,
+      },
       fixedRate: _fixedRate,
       startAt: new u64(getTimestamp(_startAt)),
       investAt: new u64(getTimestamp(_investAt)),
       redeemAt: new u64(getTimestamp(_redeemAt)),
     };
 
-    await _client.initializeVault(vaultConfig, walletKeyPair);
+    await _client.initializeVault(vaultConfig, walletKeyPair, _execute);
 
     const { addr } = await _client.generateVaultAddress(_authority);
 
@@ -327,18 +393,20 @@ programCommand("deposit")
     "-a --amount <number>",
     "Amount of funds to deposit. Ignore the decimal calculation - just provide the raw amount."
   )
+  .option("-e, --execute <boolean>", "Execute transaction or not")
   .action(async (_, cmd) => {
-    const { keypair, env, vault, mint, amount } = cmd.opts();
+    const { keypair, env, vault, mint, amount, execute } = cmd.opts();
 
     const walletKeyPair: Keypair = loadWalletKey(keypair);
     const _client = createClient(env, walletKeyPair);
+    const _execute = execute === "true" ? true : false;
 
     const _vault = new PublicKey(vault);
     const _mint = new PublicKey(mint);
     const decimals = (await _client.fetchTokenSupply(_mint)).decimals;
     const _amount = toU64(+amount * 10 ** decimals);
 
-    await _client.deposit(_vault, _mint, _amount, walletKeyPair);
+    await _client.deposit(_vault, _mint, _amount, walletKeyPair, _execute);
 
     log.info("===========================================");
     log.info(
@@ -346,6 +414,454 @@ programCommand("deposit")
     );
     log.info("===========================================");
   });
+
+programCommand("claim")
+  .option(
+    "-v, --vault <pubkey>",
+    "Public key of the vault into which you want to deposit funds"
+  )
+  .option("-m --mint <pubkey>", "Public key of the asset you want to deposit")
+  .option("-e, --execute <boolean>", "Execute transaction or not")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, mint, execute } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _vault = new PublicKey(vault);
+    const _mint = new PublicKey(mint);
+    const _execute = execute === "true" ? true : false;
+
+    const tx = await _client.claim(_vault, _mint, walletKeyPair, _execute);
+
+    log.info("===========================================");
+    log.info(
+      `Entity attempted to invoke claim for mint ${_mint.toBase58()} in vault ${_vault.toBase58()}; Details in TX: ${tx}`
+    );
+    log.info("===========================================");
+  });
+
+programCommand("process_claims")
+  .option(
+    "-v, --vault <pubkey>",
+    "Public key of the vault into which you want to deposit funds"
+  )
+  .option("-e, --execute <boolean>", "Execute transaction or not")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, execute } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _vault = new PublicKey(vault);
+    const _execute = execute === "true" ? true : false;
+
+    const { tx, claimsProcessed } = await _client.processClaims(
+      _vault,
+      walletKeyPair,
+      _execute
+    );
+
+    log.info("===========================================");
+    log.info(
+      `Processed claims = ${claimsProcessed} with details in TX = ${tx}`
+    );
+    log.info("===========================================");
+  });
+
+programCommand("withdraw")
+  .option(
+    "-v, --vault <pubkey>",
+    "Public key of the vault into which you want to deposit funds"
+  )
+  .option("-m --mint <pubkey>", "Public key of the asset you want to deposit")
+  .option(
+    "-tt --trancheToken <pubkey>",
+    "Public key of the LP representing the position in the vault"
+  )
+  .option(
+    "-a --amount <number>",
+    "Amount of funds to deposit. Ignore the decimal calculation - just provide the raw amount."
+  )
+  .option("-e, --execute <boolean>", "Execute transaction or not")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, mint, trancheToken, amount, execute } =
+      cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _execute = execute === "true" ? true : false;
+
+    const _vault = new PublicKey(vault);
+    const _mint = new PublicKey(mint);
+    const _trancheToken = new PublicKey(trancheToken);
+
+    let _amount = ZERO_U64;
+    if (amount !== null) {
+      const decimals = (await _client.fetchTokenSupply(_trancheToken)).decimals;
+      _amount = toU64(+amount * 10 ** decimals);
+    }
+
+    await _client.withdraw(
+      _vault,
+      _mint,
+      _trancheToken,
+      walletKeyPair,
+      _amount,
+      _execute
+    );
+
+    log.info("===========================================");
+    log.info(
+      `Withdrew ${_amount.toNumber()} of ${_trancheToken.toBase58()} LP for underlying mint ${_mint.toBase58()} from vault ${_vault.toBase58()}`
+    );
+    log.info("===========================================");
+  });
+
+// ============================================================================
+// orca related commands
+// ============================================================================
+
+programCommand("initialize_user_farm")
+  .option("-v, --vault <pubkey>", "Vault pubkey")
+  .option("-ofp, --orcaFarmProgram <pubkey>", "Orca Farm Program")
+  .option("-ft, --farmType <string>", "Farm type: aquafarm or double-dip")
+  .option("-p, --pair <string>", "Orca pool pair (e.g. ORCA_SOL)")
+  .option("-e, --execute <boolean>", "Execute transaction or not")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, orcaFarmProgram, farmType, pair, execute } =
+      cmd.opts();
+
+    // todo: validate farm type better
+    const validFarmTypes = ["aquafarm", "double-dip"];
+    if (!farmType || !validFarmTypes.includes(farmType))
+      throw new Error("Must provide valid farm type");
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _vault = new PublicKey(vault);
+    const _orcaFarmProgram = new PublicKey(orcaFarmProgram);
+    const _execute = execute === "true" ? true : false;
+
+    const connection = new Connection(clusterApiUrl(env), "singleGossip");
+    const orca = getOrca(connection, Network.DEVNET);
+    // todo: create soe sort of enum to represent farm type?
+    const farmParams =
+      farmType === "aquafarm"
+        ? getAquafarm(orca, pair)
+        : getDoubleDipFarm(orca, pair);
+
+    const tx = await _client.initializeUserFarmOrca(
+      _vault,
+      _orcaFarmProgram,
+      farmParams,
+      walletKeyPair,
+      _execute
+    );
+
+    log.info("===========================================");
+    log.info(
+      `Initialized user farm for farm ${farmParams.address.toBase58()} with base token mint ${farmParams.baseTokenMint.toBase58()}, farm token mint ${farmParams.farmTokenMint.toBase58()}, and reward token mint ${farmParams.rewardTokenMint.toBase58()} for vault ${_vault.toBase58()} in TX: ${tx}`
+    );
+    log.info("===========================================");
+  });
+
+programCommand("invest_orca")
+  .option("-v, --vault <pubkey>", "Vault pubkey")
+  .option("-osp, --orcaSwapProgram <pubkey>", "Orca Swap Program")
+  .option("-p, --pair <string>", "Orca pool pair (e.g. ORCA_SOL)")
+  .option("-a, --alpha <number>", "Amount of alpha asset to invest")
+  .option("-b, --beta <number>", "Amount of beta asset to invest")
+  .option("-e, --execute <boolean>", "Execute transaction or not")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, orcaSwapProgram, pair, alpha, beta, execute } =
+      cmd.opts();
+
+    if (!alpha && !beta) throw new Error("Provide alpha or beta");
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _vault = new PublicKey(vault);
+    const _orcaSwapProgram = new PublicKey(orcaSwapProgram);
+    const _alpha = new Decimal(alpha);
+    const _beta = new Decimal(beta);
+    const _execute = execute === "true" ? true : false;
+
+    const tx = await _client.investOrca(
+      _vault,
+      _orcaSwapProgram,
+      pair,
+      _alpha,
+      _beta,
+      walletKeyPair,
+      _execute
+    );
+    console.log(
+      `Invested ${_alpha.toNumber()} of token A and ${_beta.toNumber()} of token B in TX = ${tx}`
+    );
+  });
+
+programCommand("redeem_orca")
+  .option("-v, --vault <pubkey>", "Vault pubkey")
+  .option("-osp, --orcaSwapProgram <pubkey>", "Orca Swap Program")
+  .option("-p, --pair <string>", "Orca pool pair (e.g. ORCA_SOL)")
+  .option("-lp, --lpAmount <number>", "Amount of LP to withdraw")
+  .option("-e, --execute <boolean>", "Execute transaction or not")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, orcaSwapProgram, pair, lpAmount, execute } =
+      cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _vault = new PublicKey(vault);
+    const _orcaSwapProgram = new PublicKey(orcaSwapProgram);
+    const _execute = execute === "true" ? true : false;
+
+    try {
+      const tx = await _client.redeemOrca(
+        _vault,
+        _orcaSwapProgram,
+        pair,
+        walletKeyPair,
+        _execute
+      );
+
+      log.info("===========================================");
+      log.info(`Redeemed LP from ${pair} on vault ${_vault} in TX: ${tx}`);
+      log.info("===========================================");
+    } catch (error: any) {
+      log.error(error);
+    }
+  });
+
+programCommand("convert_lp_tokens")
+  .option("-v, --vault <pubkey>", "Vault pubkey")
+  .option("-ofp, --orcaFarmProgram <pubkey>", "Orca Farm Program")
+  .option("-ft, --farmType <string>", "Farm type: aquafarm or double-dip")
+  .option("-p, --pair <string>", "Orca pool pair (e.g. ORCA_SOL)")
+  .option("-e, --execute <boolean>", "Execute transaction or not")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, orcaFarmProgram, farmType, pair, execute } =
+      cmd.opts();
+
+    // todo: validate farm type better
+    const validFarmTypes = ["aquafarm", "double-dip"];
+    if (!farmType || !validFarmTypes.includes(farmType))
+      throw new Error("Must provide valid farm type");
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _vault = new PublicKey(vault);
+    const _orcaFarmProgram = new PublicKey(orcaFarmProgram);
+    const _execute = execute === "true" ? true : false;
+
+    try {
+      const tx = await _client.convertOrcaLp(
+        _vault,
+        _orcaFarmProgram,
+        pair,
+        toOrcaFarmType(farmType),
+        walletKeyPair,
+        _execute
+      );
+
+      log.info("===========================================");
+      log.info(`Converted base LP to farm LP in TX: ${tx}`);
+      log.info("===========================================");
+    } catch (error: any) {
+      log.error(error);
+    }
+  });
+
+programCommand("harvest")
+  .option("-v, --vault <pubkey>", "Vault pubkey")
+  .option("-ofp, --orcaFarmProgram <pubkey>", "Orca Farm Program")
+  .option("-ft, --farmType <string>", "Farm type: aquafarm or double-dip")
+  .option("-p, --pair <string>", "Orca pool pair (e.g. ORCA_SOL)")
+  .option("-e, --execute <boolean>", "Execute transaction or not")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, orcaFarmProgram, farmType, pair, execute } =
+      cmd.opts();
+
+    // todo: validate farm type better
+    const validFarmTypes = ["aquafarm", "double-dip"];
+    if (!farmType || !validFarmTypes.includes(farmType))
+      throw new Error("Must provide valid farm type");
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _vault = new PublicKey(vault);
+    const _orcaFarmProgram = new PublicKey(orcaFarmProgram);
+    const _execute = execute === "true" ? true : false;
+
+    try {
+      const tx = await _client.harvestOrca(
+        _vault,
+        _orcaFarmProgram,
+        pair,
+        toOrcaFarmType(farmType),
+        walletKeyPair,
+        _execute
+      );
+
+      log.info("===========================================");
+      log.info(`Harvested rewards for farm of pair ${pair} in TX: ${tx}`);
+      log.info("===========================================");
+    } catch (error: any) {
+      log.error(error);
+    }
+  });
+
+programCommand("revert_lp_tokens")
+  .option("-v, --vault <pubkey>", "Vault pubkey")
+  .option("-ofp, --orcaFarmProgram <pubkey>", "Orca Farm Program")
+  .option("-ft, --farmType <string>", "Farm type: aquafarm or double-dip")
+  .option("-p, --pair <string>", "Orca pool pair (e.g. ORCA_SOL)")
+  .option("-e, --execute <boolean>", "Execute transaction or not")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, orcaFarmProgram, farmType, pair, execute } =
+      cmd.opts();
+
+    // todo: validate farm type better
+    const validFarmTypes = ["aquafarm", "double-dip"];
+    if (!farmType || !validFarmTypes.includes(farmType))
+      throw new Error("Must provide valid farm type");
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _vault = new PublicKey(vault);
+    const _orcaFarmProgram = new PublicKey(orcaFarmProgram);
+    const _execute = execute === "true" ? true : false;
+
+    try {
+      const tx = await _client.revertOrcaLp(
+        _vault,
+        _orcaFarmProgram,
+        pair,
+        toOrcaFarmType(farmType),
+        walletKeyPair,
+        _execute
+      );
+
+      log.info("===========================================");
+      log.info(`Reverted farm LP to base LP in TX: ${tx}`);
+      log.info("===========================================");
+    } catch (error: any) {
+      log.error(error);
+    }
+  });
+
+programCommand("swap")
+  .option("-v, --vault <pubkey>", "Vault pubkey")
+  .option("-osp, --orcaSwapProgram <pubkey>", "Orca Swap Program")
+  .option("-p, --pair <string>", "Orca pool pair (e.g. ORCA_SOL)")
+  .option("-ti, --tokenIn <pubkey>", "Token to swap")
+  .option("-ai, --amountIn <number>", "Amount of token to deposit")
+  .option("-e, --execute <boolean>", "Execute transaction or not")
+  .action(async (_, cmd) => {
+    const {
+      keypair,
+      env,
+      vault,
+      orcaSwapProgram,
+      pair,
+      tokenIn,
+      amountIn,
+      execute,
+    } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+
+    const _vault = new PublicKey(vault);
+    const _orcaSwapProgram = new PublicKey(orcaSwapProgram);
+    const _tokenIn = new PublicKey(tokenIn);
+    const _execute = execute === "true" ? true : false;
+
+    const connection = new Connection(clusterApiUrl(env), "singleGossip");
+    const orca = getOrca(connection, Network.DEVNET);
+    log.info("orca obj");
+
+    try {
+      const { pool, poolParams } = getOrcaPool(orca, pair);
+
+      const __tokenIn =
+        _tokenIn.toBase58() === pool.getTokenA().mint.toBase58()
+          ? pool.getTokenA()
+          : pool.getTokenB();
+
+      const _amountIn = new Decimal(+amountIn);
+      const quote = await pool.getQuote(__tokenIn, _amountIn);
+      const outputAmount = quote.getMinOutputAmount();
+      console.log(
+        "amountIn: ",
+        amountIn,
+        ", output: ",
+        outputAmount.toNumber()
+      );
+
+      const tx = await _client.swapFromFarmVault(
+        _vault,
+        _orcaSwapProgram,
+        _tokenIn,
+        _amountIn, // todo: does this? work?
+        outputAmount.toDecimal(),
+        poolParams,
+        walletKeyPair,
+        _execute
+      );
+
+      log.info("===========================================");
+      log.info(
+        `Swap ${_amountIn.toNumber()} of token [${_tokenIn.toBase58()}] for ${outputAmount.toNumber()} in TX: ${tx}`
+      );
+      log.info("===========================================");
+    } catch (error: any) {
+      log.error(error);
+    }
+  });
+
+// ============================================================================
+// misc helper commands
+// ============================================================================
+
+programCommand("cost", false)
+  .option(
+    "-e, --env <string>",
+    "Solana cluster env name",
+    "devnet" // mainnet-beta, testnet, devnet
+  )
+  .option("-s, --size <number>", "Rent free cost for accounts of size n")
+  .action(async (_, cmd) => {
+    const { env, size } = cmd.opts();
+
+    const connection = new Connection(clusterApiUrl(env));
+    const cost = await connection.getMinimumBalanceForRentExemption(+size);
+
+    console.log(
+      `Account of size ${size} costs ${cost} lamports [${
+        cost / LAMPORTS_PER_SOL
+      } SOL]`
+    );
+  });
+
+programCommand("ts", false)
+  .option(
+    "-o, --offset <number>",
+    "Optional offset from current timestamp. In seconds."
+  )
+  .action(async (_, cmd) => {
+    const { offset } = cmd.opts();
+
+    let date = new Date();
+    if (offset) {
+      date = addSeconds(date, +offset);
+    }
+
+    console.log("Timestamp (with optional offset): ", date.getTime());
+  });
+
+// ============================================================================
+// token related commands
+// ============================================================================
 
 // mint with keypair as authority since it has to sign the tx & can be used to mint new tokens.
 programCommand("mint")
@@ -622,3 +1138,44 @@ const createClient = (cluster: Cluster, keypair: Keypair) => {
 };
 
 program.parse(process.argv);
+
+// todo: add type
+export const getOrcaPool = (orca: Orca, pair: string) => {
+  try {
+    const pool = orca.getPool(OrcaPoolConfig[pair]);
+    return {
+      pool,
+      poolParams: (pool as any).poolParams,
+    };
+  } catch (err: any) {
+    throw new Error(`pool not found for ${pair}`);
+  }
+};
+
+export const getAquafarm = (
+  orca: Orca,
+  pair: string
+): OrcaFarmParams | null => {
+  const farmPair = `${pair}_AQ`; // transform `ORCA_SOL` to `ORCA_SOL_AQ`
+
+  try {
+    const orcaSolFarm = orca.getFarm(OrcaFarmConfig[farmPair]);
+    return (orcaSolFarm as any).farmParams;
+  } catch (err: any) {
+    return null;
+  }
+};
+
+export const getDoubleDipFarm = (
+  orca: Orca,
+  pair: string
+): OrcaFarmParams | null => {
+  const doubleDipPair = `${pair}_DD`; // transform `ORCA_SOL` to `ORCA_SOL_AQ`
+
+  try {
+    const doubleDipFarm = orca.getFarm(OrcaFarmConfig[doubleDipPair]);
+    return (doubleDipFarm as any).farmParams;
+  } catch (err: any) {
+    return null;
+  }
+};

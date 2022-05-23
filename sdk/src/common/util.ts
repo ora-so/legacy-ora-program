@@ -11,7 +11,13 @@ import {
 import invariant from "tiny-invariant";
 import { ZERO_U64, MAX_BPS, TS_IN_MS_DIGITS } from "./constant";
 
-import { SignerInfo, ATAResult, SwapAmount, State, IVault } from "./types";
+import {
+  SignerInfo,
+  CompositeATAResult,
+  SwapAmount,
+  State,
+  IVault,
+} from "./types";
 
 export function isKp(kp: PublicKey | Keypair) {
   return kp instanceof Keypair || "_keypair" in kp;
@@ -52,16 +58,12 @@ export const executeTx = async (
 };
 
 export const flattenValidInstructions = (
-  ataResults: ATAResult[]
-): TransactionInstruction[] => {
-  const flattenedInstructions: TransactionInstruction[] = [];
-
-  ataResults.forEach((res) => {
-    flattenedInstructions.push(...(res.instruction ? [res.instruction] : []));
-  });
-
-  return flattenedInstructions;
-};
+  results: CompositeATAResult[]
+): TransactionInstruction[] =>
+  results.reduce((p, c) => {
+    p.push(...c.instructions);
+    return p;
+  }, [] as TransactionInstruction[]);
 
 // given max slippage in bps, calculate the minimum amount of token B we are willing to accept after the swap.
 export const computeSwapAmounts = (

@@ -31,14 +31,11 @@ export interface SignerInfo {
   signers: Keypair[];
 }
 
-export interface ATAResult {
+export interface CompositeATAResult {
   address: PublicKey;
-  instruction: TransactionInstruction | null;
-}
-
-export interface ATAsResult {
-  addresses: { [pubkey: string]: PublicKey };
-  instructions: (TransactionInstruction | null)[];
+  instructions: TransactionInstruction[];
+  cleanup: TransactionInstruction[];
+  signers: Keypair[];
 }
 
 export interface ParsedTokenAccount {
@@ -72,12 +69,18 @@ export interface TokenSupply {
   decimals: number;
 }
 
+export interface AssetConfig {
+  mint: PublicKey;
+  assetCap?: u64;
+  userCap?: u64;
+}
+
 export interface VaultConfig {
   authority: PublicKey;
   strategy: PublicKey;
   strategist: PublicKey;
-  alpha: PublicKey;
-  beta: PublicKey;
+  alpha: AssetConfig;
+  beta: AssetConfig;
   fixedRate: number;
   startAt: u64;
   investAt: u64;
