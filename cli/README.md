@@ -77,3 +77,159 @@ ts-node ./src/cli.ts deposit --env <env> --keypair <path-to-keypair> --vault <pu
 ### Todo
 
 Add commands for other operations, invest, process_claims, claim, withdraw, etc.
+
+==================================================
+GLOBAL PROTOCOL STATE FLOW
+==================================================
+
+--> using a pubkey from phantom ui
+ts-node ./src/cli.ts init_global_protocol_state \
+ --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --treasury 9LB3HEydFZuPnu9h2GnjfrErR7a3Hh2uQ8a2P7iLMtTE \
+ --execute true
+
+ts-node ./src/cli.ts derive_global_protocol_state \
+ --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json
+
+ts-node ./src/cli.ts show_global_protocol_state \
+ --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --pubkey E1SaLmt31ycxSDGyEXAaer1F49qkHh4n8QF8z9zUQKfG
+
+==================================================
+VAULT FLOW
+==================================================
+
+<!-- authority & strategist same for now -->
+
+ts-node ./src/cli.ts init_vault --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --strategist /Users/jacobshiohira/.config/solana/devnet.json \
+ --strategy <pubkey> \
+ --alpha <pubkey> \
+ --beta <pubkey> \
+ --fixedRate <number> \
+ --startAt <number> \
+ --depositPeriod <number> \
+ --livePeriod <number> \
+ --execute false
+
+ts-node ./src/cli.ts show_vault --env devnet \
+ --keypair <path-to-keypair> \
+ --vault <pubkey>
+
+ts-node ./src/cli.ts deposit --env devnet \
+ --keypair <path-to-keypair> \
+ --vault <pubkey> \
+ --mint <pubkey> \
+ --amount <number> \
+ --execute false
+
+ts-node ./src/cli.ts process_claims --env devnet \
+ --keypair <path-to-keypair> \
+ --vault <pubkey> \
+ --execute false
+
+ts-node ./src/cli.ts claim --env devnet \
+ --keypair <path-to-keypair> \
+ --vault <pubkey> \
+ --mint <pubkey> \
+ --execute false
+
+ts-node ./src/cli.ts withdraw --env devnet \
+ --keypair <path-to-keypair> \
+ --vault <pubkey> \
+ --mint <pubkey> \
+ --trancheToken <pubkey> \
+ --execute false
+
+==================================================
+ORCA FLOW
+==================================================
+
+<!-- devnet swap: 3xQ8SWv2GaFXXpHZNqkXsdxq5DZciHBz6ZFoPPfbFd7U -->
+<!-- devnet farm: 82yxjeMsvaURa4MbZZ7WZZHfobirZYkH1zF8fmeGtyaQ -->
+
+ts-node ./src/cli.ts find_orca_pools \
+ --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --tickerA USDC \
+ --tickerB SOL
+
+ts-node ./src/cli.ts init_orca_strategy \
+ --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --orcaSwapProgram 3xQ8SWv2GaFXXpHZNqkXsdxq5DZciHBz6ZFoPPfbFd7U \
+ --orcaFarmProgram 82yxjeMsvaURa4MbZZ7WZZHfobirZYkH1zF8fmeGtyaQ \
+ --pair ORCA_SOL \
+ --execute true
+
+ts-node ./src/cli.ts show_orca_strategy \
+ --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --addr 6NKgFQQ24zMaC7yP1udds3iVdAGSjfVTpQSYcagiANM5
+
+ts-node ./src/cli.ts initialize_user_farm --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault <pubkey> \
+ --orcaFarmProgram 82yxjeMsvaURa4MbZZ7WZZHfobirZYkH1zF8fmeGtyaQ \
+ --pair ORCA_SOL \
+ --execute false
+
+ts-node ./src/cli.ts invest_orca --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault <pubkey> \
+ --orcaSwapProgram 3xQ8SWv2GaFXXpHZNqkXsdxq5DZciHBz6ZFoPPfbFd7U \
+ --pair ORCA_SOL \
+ --alpha <number> \
+ --beta <number> \
+ --execute false
+
+ts-node ./src/cli.ts invest_orca --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault <pubkey> \
+ --orcaSwapProgram 3xQ8SWv2GaFXXpHZNqkXsdxq5DZciHBz6ZFoPPfbFd7U \
+ --pair ORCA_SOL \
+ --alpha <number> \
+ --beta <number> \
+ --execute false
+
+ts-node ./src/cli.ts convert_lp_tokens --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault <pubkey> \
+ --orcaFarmProgram 82yxjeMsvaURa4MbZZ7WZZHfobirZYkH1zF8fmeGtyaQ \
+ --farmType aquafarm \
+ --pair ORCA_SOL \
+ --execute false
+
+ts-node ./src/cli.ts harvest --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault <pubkey> \
+ --orcaFarmProgram 82yxjeMsvaURa4MbZZ7WZZHfobirZYkH1zF8fmeGtyaQ \
+ --farmType aquafarm \
+ --pair ORCA_SOL \
+ --execute false
+
+ts-node ./src/cli.ts revert_lp_tokens --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault <pubkey> \
+ --orcaFarmProgram 82yxjeMsvaURa4MbZZ7WZZHfobirZYkH1zF8fmeGtyaQ \
+ --farmType aquafarm \
+ --pair ORCA_SOL \
+ --execute false
+
+==================================================
+TOKEN HELPER FLOW
+==================================================
+
+ts-node ./src/cli.ts mint_to --env devnet \
+ --keypair <path-to-keypair> \
+ --mint <pubkey> \
+ --to <pubkey> \
+ --amount <number>
+
+ts-node ./src/cli.ts mint --env <env> \
+ --keypair <path-to-keypair> \
+ --decimals <number>

@@ -46,10 +46,6 @@ pub struct OrcaStrategyDataV0 {
     pub swap_program: Pubkey,
     /// public key for the orca farm program
     pub farm_program: Pubkey,
-    /// proxy account that will hold all LP tokens for the vault
-    /// since interactions require the account to carry 0 data.
-    /// None until assigned.
-    pub farm_vault: Option<Pubkey>,
     /// LP mint for a base pool
     pub base_lp: Pubkey,
     /// LP mint for a given pool's aquafarm
@@ -77,42 +73,14 @@ impl OrcaStrategyDataV0 {
         self.farm_lp = config.farm_lp;
         self.double_dip_lp = config.double_dip_lp;
 
-        self.farm_vault = None;
-
         Ok(())
-    }
-
-    // call during init_user_farm
-    pub fn assign_farm_vault(&mut self, farm_vault: &Pubkey) -> Result<(), ProgramError> {
-        // farm vault can only be assigned once per vault lifetime
-        match self.farm_vault {
-            Some(_) => return Err(CannotReinstantiateFarmVault.into()),
-            None => {
-                self.farm_vault = Some(*farm_vault);
-                Ok(())
-            }
-        }
-    }
-
-    // assert the given farm vault match what is registered on the vault. farm vault will be none
-    // if the user farm has not been inititialized. this is expected because the orca CPI call would
-    // also fail without a valid user farm account.
-    // this is on the strategy as opposed to the vault because it is an attribute specific to saber
-    pub fn verify_farm_vault(&mut self, farm_vault: &Pubkey) -> Result<(), ProgramError> {
-        match self.farm_vault {
-            Some(_farm_vault) => {
-                require!(_farm_vault == *farm_vault, PublicKeyMismatch);
-                Ok(())
-            }
-            None => return Err(MissingFarmVault.into()),
-        }
     }
 }
 
 // =====================================================================
 
 #[derive(Accounts)]
-#[instruction(flag: u64, version: u16)]
+#[instruction(bump: u8, flag: u64, version: u16)]
 pub struct InitializeOrca<'info> {
     #[account(
         mut,
@@ -179,8 +147,9 @@ impl<'info> StrategyInitializer<'info> for InitializeOrca<'info> {
     fn initialize_strategy(&mut self, bump: u8, flag: u64, version: u16) -> ProgramResult {
         let default_pubkey = Pubkey::default();
 
+        // if key == default_pubkey, indicate double dip farm DNE
         let _double_dip_lp = match *self.double_dip_farm_lp.key {
-            key if key == default_pubkey => Some(key),
+            key if key != default_pubkey => Some(key),
             _ => None,
         };
 
@@ -210,22 +179,22 @@ pub struct InvestOrca<'info> {
     pub authority: UncheckedAccount<'info>,
 
     #[account(
-     seeds = [GLOBAL_STATE_SEED.as_bytes()],
-     bump,
- )]
+        seeds = [GLOBAL_STATE_SEED.as_bytes()],
+        bump,
+    )]
     pub global_protocol_state: Box<Account<'info, GlobalProtocolState>>,
 
     #[account(
-     mut,
-     seeds = [
-         VAULT_SEED.as_bytes(),
-         authority.key().to_bytes().as_ref()
-     ],
-     bump,
-     constraint = vault.strategy == strategy.key(),
-     constraint = vault.authority == authority.key(),
-     constraint = vault.strategist == payer.key()
- )]
+        mut,
+        seeds = [
+            VAULT_SEED.as_bytes(),
+            authority.key().to_bytes().as_ref()
+        ],
+        bump,
+        constraint = vault.strategy == strategy.key(),
+        constraint = vault.authority == authority.key(),
+        constraint = vault.strategist == payer.key()
+    )]
     pub vault: Box<Account<'info, Vault>>,
 
     pub strategy: Box<Account<'info, OrcaStrategyDataV0>>,
@@ -682,7 +651,7 @@ impl<'info> FarmInitializer<'info> for InitializeUserFarmOrca<'info> {
             &[vault_farm_signer_seeds],
         )?;
 
-        self.strategy.assign_farm_vault(self.farm_vault.key)?;
+        self.vault.assign_farm_vault(self.farm_vault.key)?;
 
         Ok(())
     }
@@ -794,7 +763,7 @@ impl<'info> Converter<'info> for ConvertOrcaLp<'info> {
             PublicKeyMismatch
         );
 
-        self.strategy.verify_farm_vault(self.farm_vault.key)?;
+        self.vault.verify_farm_vault(self.farm_vault.key)?;
 
         let vault_pool_lp_amount = self.pool_account.amount;
         msg!(
@@ -931,7 +900,7 @@ impl<'info> Harvester<'info> for HarvestOrcaLp<'info> {
             PublicKeyMismatch
         );
 
-        self.strategy.verify_farm_vault(self.farm_vault.key)?;
+        self.vault.verify_farm_vault(self.farm_vault.key)?;
 
         let vault_key = self.vault.key();
         let vault_farm_signer_seeds: &[&[&[u8]]] =
@@ -1070,7 +1039,8 @@ impl<'info> Reverter<'info> for RevertOrcaLp<'info> {
             PublicKeyMismatch
         );
 
-        self.strategy.verify_farm_vault(self.farm_vault.key)?;
+        self.vault.verify_farm_vault(self.farm_vault.key)?;
+
         let farm_lp_amount = self.user_farm_ata.amount;
         msg!("lp to revert: {:?}", farm_lp_amount);
 
@@ -1218,7 +1188,7 @@ impl<'info> Swapper<'info> for SwapOrca<'info> {
             &[FARM_VAULT_SEED.as_bytes(), vault_key.as_ref(), &[bump]];
 
         // gross, but only way i could get this to work at 1:30 am to get around ownership issues
-        let farm_vault = unwrap_or_err!(self.strategy.farm_vault, MissingFarmVault);
+        let farm_vault = unwrap_or_err!(self.vault.farm_vault, MissingFarmVault);
         let swap_signer_seeds = match *self.user_transfer_authority.key {
             swap_authority if swap_authority == vault_key => vault_signer_seeds,
             swap_authority if swap_authority == farm_vault => vault_farm_signer_seeds,

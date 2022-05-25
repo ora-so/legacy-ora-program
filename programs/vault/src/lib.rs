@@ -15,7 +15,7 @@ use error::ErrorCode;
 use instructions::*;
 use state::{GlobalProtocolState, VaultConfig};
 
-declare_id!("56YRTVX6MNrpQgnGQbzAq7xPyeqyY9ShDrpRNkyMpUgj");
+declare_id!("3SAKahh1Tpk6r3iDyTCYk1L1rB3SogYjVm5c5eSoz4zu");
 
 #[program]
 pub mod vault {

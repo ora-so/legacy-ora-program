@@ -34,6 +34,7 @@ import {
   getCurrentTimestamp,
   toU64,
   toIVault,
+  clusterToNetwork,
 } from "@ora-protocol/sdk";
 
 import {
@@ -84,6 +85,18 @@ programCommand("derive_vault")
     log.info("===========================================");
   });
 
+programCommand("derive_global_protocol_state").action(async (_, cmd) => {
+  const { keypair, env } = cmd.opts();
+
+  const walletKeyPair: Keypair = loadWalletKey(keypair);
+  const _client = createClient(env, walletKeyPair);
+  const { addr } = await _client.generateGlobalStateAddress();
+
+  log.info("===========================================");
+  log.info("Global protocol address: ", addr.toBase58());
+  log.info("===========================================");
+});
+
 programCommand("init_global_protocol_state")
   .option("-t, --treasury <pubkey>", "Pubkey of the protocol treasury")
   .option("-e, --execute <boolean>", "Execute transaction or not")
@@ -106,6 +119,26 @@ programCommand("init_global_protocol_state")
     log.info(
       `✅ Initialized global protocol state with public key [${addr.toBase58()}] in tx [${tx}]`
     );
+    log.info("===========================================");
+  });
+
+programCommand("show_global_protocol_state")
+  .option("-p, --pubkey <pubkey>", "Pubkey of global protocol state pubkey")
+  .action(async (_, cmd) => {
+    const { keypair, env, pubkey } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _pubkey = new PublicKey(pubkey);
+    const globalState = await _client.fetchGlobalState(_pubkey);
+
+    log.info("===========================================");
+    log.info("Global state protocol");
+    log.info("Address: ", _pubkey.toBase58());
+    log.info("Bump: ", globalState.bump);
+    log.info("Authority: ", globalState.authority.toBase58());
+    log.info("Active: ", globalState.active);
+    log.info("Treasury: ", globalState.treasury.toBase58());
     log.info("===========================================");
   });
 
@@ -149,6 +182,43 @@ programCommand("init_saber_strategy")
     log.info("===========================================");
   });
 
+programCommand("find_orca_pools")
+  .option(
+    "-ta, --tickerA <pubkey>",
+    "Ticker for token A for which we want to find a pool"
+  )
+  .option(
+    "-tb, --tickerB <pubkey>",
+    "Ticker for token B for which we want to find a pool"
+  )
+  .action(async (_, cmd) => {
+    const { keypair, env, tickerA, tickerB } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const orca = getOrca(_client.provider.connection, clusterToNetwork(env));
+
+    const p1 = `${tickerA}_${tickerB}`;
+    const p2 = `${tickerB}_${tickerA}`;
+    for (const pair of [p1, p2]) {
+      try {
+        console.log("================= Pool Info =======================");
+        const pool = orca.getPool(OrcaPoolConfig[pair]);
+        const poolParams: OrcaPoolParams = (pool as any).poolParams;
+        console.log(`Pool for ${pair}: ${poolParams.address.toBase58()}`);
+
+        const _tokenA = pool.getTokenA();
+        console.log(`tokenA: ${_tokenA.name} => ${_tokenA.mint.toBase58()}`);
+        const _tokenB = pool.getTokenB();
+        console.log(`tokenB: ${_tokenB.name} => ${_tokenB.mint.toBase58()}`);
+        const poolTokenMint = pool.getPoolTokenMint();
+        console.log(`poolTokenMint: ${poolTokenMint.toBase58()}`);
+      } catch (_: any) {
+        console.log(`No pool for ${pair}`);
+      }
+    }
+  });
+
 programCommand("init_orca_strategy")
   .option("-osp, --orcaSwapProgram <pubkey>", "Orca Swap Program")
   .option("-ofp, --orcaFarmProgram <pubkey>", "Orca Farm Program")
@@ -182,6 +252,43 @@ programCommand("init_orca_strategy")
     } catch (error: any) {
       log.error(error);
     }
+  });
+
+programCommand("show_orca_strategy")
+  .option("-a, --addr <pubkey>", "Pubkey of the strategy")
+  .action(async (_, cmd) => {
+    const { keypair, env, addr } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _addr = new PublicKey(addr);
+
+    const strategy = await _client.fetchOrcaLpStrategyV0(_addr);
+
+    log.info("===========================================");
+    log.info("Orca strategy info");
+    log.info("Address: ", _addr.toBase58());
+    log.info("Bump: ", strategy.bump);
+    log.info("===========================================");
+    log.info("Flag: ", strategy.flag.toNumber());
+    log.info("Version: ", strategy.version);
+    log.info("Swap program: ", strategy.swapProgram.toBase58());
+    log.info("Farm program: ", strategy.farmProgram.toBase58());
+    log.info("Base LP: ", strategy.baseLp.toBase58());
+    log.info("Farm LP: ", strategy.farmLp.toBase58());
+    if (strategy.doubleDipLp) {
+      log.info("Double dip LP: ", strategy.doubleDipLp.toBase58());
+    } else {
+      log.info("No double dip LP for strategy");
+    }
+
+    if (strategy.farmVault) {
+      log.info("Farm vault: ", strategy.farmVault.toBase58());
+    } else {
+      log.info("Farm vault not assigned yet. ");
+    }
+
+    log.info("===========================================");
   });
 
 programCommand("init_vault")
@@ -603,11 +710,10 @@ programCommand("redeem_orca")
   .option("-v, --vault <pubkey>", "Vault pubkey")
   .option("-osp, --orcaSwapProgram <pubkey>", "Orca Swap Program")
   .option("-p, --pair <string>", "Orca pool pair (e.g. ORCA_SOL)")
-  .option("-lp, --lpAmount <number>", "Amount of LP to withdraw")
+  // .option("-lp, --lpAmount <number>", "Amount of LP to withdraw")
   .option("-e, --execute <boolean>", "Execute transaction or not")
   .action(async (_, cmd) => {
-    const { keypair, env, vault, orcaSwapProgram, pair, lpAmount, execute } =
-      cmd.opts();
+    const { keypair, env, vault, orcaSwapProgram, pair, execute } = cmd.opts();
 
     const walletKeyPair: Keypair = loadWalletKey(keypair);
     const _client = createClient(env, walletKeyPair);

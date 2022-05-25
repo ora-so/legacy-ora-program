@@ -73,6 +73,11 @@ pub struct Vault {
     /// timestamp when strategist can redeem LP tokens for liquidity, investors can withdraw
     pub redeem_at: u64,
 
+    /// proxy account that will hold all LP tokens for the vault
+    /// since interactions require the account to carry 0 data.
+    /// None until assigned.
+    pub farm_vault: Option<Pubkey>,
+
     /// optional: asset for which we have an
     pub excess: Option<Pubkey>,
     pub claims_processed: bool,
@@ -103,6 +108,8 @@ impl Vault {
         self.invest_at = config.invest_at;
         self.redeem_at = config.redeem_at;
         self.state = State::Inactive;
+
+        self.farm_vault = None;
 
         // excess related metadata; value set at time of investment
         self.excess = None;
@@ -265,5 +272,31 @@ impl Vault {
     pub fn can_perform_swap(&self) -> bool {
         // withdraw too in case not everything fit within redeem?
         return self.state != State::Live || self.state != State::Redeem;
+    }
+
+    // call during init_user_farm
+    pub fn assign_farm_vault(&mut self, farm_vault: &Pubkey) -> Result<(), ProgramError> {
+        // farm vault can only be assigned once per vault lifetime
+        match self.farm_vault {
+            Some(_) => return Err(ErrorCode::CannotReinstantiateFarmVault.into()),
+            None => {
+                self.farm_vault = Some(*farm_vault);
+                Ok(())
+            }
+        }
+    }
+
+    // assert the given farm vault match what is registered on the vault. farm vault will be none
+    // if the user farm has not been inititialized. this is expected because the orca CPI call would
+    // also fail without a valid user farm account.
+    // this is on the strategy as opposed to the vault because it is an attribute specific to saber
+    pub fn verify_farm_vault(&mut self, farm_vault: &Pubkey) -> Result<(), ProgramError> {
+        match self.farm_vault {
+            Some(_farm_vault) => {
+                require!(_farm_vault == *farm_vault, PublicKeyMismatch);
+                Ok(())
+            }
+            None => return Err(ErrorCode::MissingFarmVault.into()),
+        }
     }
 }

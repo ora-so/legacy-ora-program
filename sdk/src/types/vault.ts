@@ -1459,12 +1459,6 @@ export type Vault = {
             "type": "publicKey"
           },
           {
-            "name": "farmVault",
-            "type": {
-              "option": "publicKey"
-            }
-          },
-          {
             "name": "baseLp",
             "type": "publicKey"
           },
@@ -1648,6 +1642,12 @@ export type Vault = {
           {
             "name": "redeemAt",
             "type": "u64"
+          },
+          {
+            "name": "farmVault",
+            "type": {
+              "option": "publicKey"
+            }
           },
           {
             "name": "excess",
@@ -3445,12 +3445,6 @@ export const IDL: Vault = {
             "type": "publicKey"
           },
           {
-            "name": "farmVault",
-            "type": {
-              "option": "publicKey"
-            }
-          },
-          {
             "name": "baseLp",
             "type": "publicKey"
           },
@@ -3634,6 +3628,12 @@ export const IDL: Vault = {
           {
             "name": "redeemAt",
             "type": "u64"
+          },
+          {
+            "name": "farmVault",
+            "type": {
+              "option": "publicKey"
+            }
           },
           {
             "name": "excess",

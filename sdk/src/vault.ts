@@ -824,6 +824,10 @@ export class VaultClient extends AccountUtils {
     return this.vaultProgram.account.saberStrategyDataV0.fetch(addr);
   };
 
+  fetchOrcaLpStrategyV0 = async (addr: PublicKey) => {
+    return this.vaultProgram.account.orcaStrategyDataV0.fetch(addr);
+  };
+
   fetchVault = async (addr: PublicKey) => {
     return this.vaultProgram.account.vault.fetch(addr);
   };
@@ -1014,6 +1018,7 @@ export class VaultClient extends AccountUtils {
   ) => {
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
+    console.log("globalStateAddr: ", globalStateAddr.toBase58());
 
     const orca = getOrca(this.provider.connection, clusterToNetwork(cluster));
     const { pool, poolParams } = getOrcaPool(orca, pair);
@@ -1026,6 +1031,9 @@ export class VaultClient extends AccountUtils {
       doubleDipFarmParams !== null
         ? doubleDipFarmParams.farmTokenMint
         : PublicKey.default;
+    console.log("_tokenA: ", _tokenA.mint.toBase58());
+    console.log("_tokenB: ", _tokenB.mint.toBase58());
+    console.log("aquafarmParams: ", aquafarmParams.address.toBase58());
     console.log("doubleDipFarmLp: ", doubleDipFarmLp.toBase58());
 
     const { addr: strategyAddr, bump } = await this.generateOrcaStrategyAddress(
@@ -1043,7 +1051,7 @@ export class VaultClient extends AccountUtils {
 
     // todo: refactor later
     // flag is 2 // version is 0 for now
-    const flag = new BN(1 << 1); // 2
+    const flag = new BN(2); // 2
     const version = 0;
 
     if (executeTransaction) {
@@ -1058,8 +1066,8 @@ export class VaultClient extends AccountUtils {
             strategy: strategyAddr,
             swapProgram,
             farmProgram,
-            tokenA: _tokenA,
-            tokenB: _tokenB,
+            tokenA: _tokenA.mint,
+            tokenB: _tokenB.mint,
             pool: poolParams.address,
             baseLp: _poolTokenMint,
             farm: aquafarmParams.address,
@@ -1239,10 +1247,10 @@ export class VaultClient extends AccountUtils {
     if (executeTransaction) {
       // todo: wSOL account paradigm when mint is SOL; only for orca?
       return this.vaultProgram.rpc.deposit(
-        index,
+        index as any,
         receiptBump,
         historyBump,
-        amount,
+        amount as any,
         {
           accounts: {
             payer: signerInfo.payer,
@@ -1394,8 +1402,8 @@ export class VaultClient extends AccountUtils {
 
     if (executeTransaction) {
       return this.vaultProgram.rpc.investOrca(
-        maxAmountA,
-        maxAmountB,
+        maxAmountA as any,
+        maxAmountB as any,
         orcaInvestment.poolToken.amount,
         {
           accounts: {
@@ -1538,9 +1546,9 @@ export class VaultClient extends AccountUtils {
 
     if (executeTransaction) {
       return this.vaultProgram.rpc.investSaber(
-        _investableA,
-        _investableB,
-        _minAmountBack,
+        _investableA as any,
+        _investableB as any,
+        _minAmountBack as any,
         {
           accounts: {
             payer: signerInfo.payer, // must be strategist
@@ -1742,7 +1750,7 @@ export class VaultClient extends AccountUtils {
     console.log("minB: ", minB.toNumber());
 
     if (executeTransaction) {
-      return this.vaultProgram.rpc.redeemSaber(minA, minB, null, {
+      return this.vaultProgram.rpc.redeemSaber(minA as any, minB as any, null, {
         accounts: {
           payer: signerInfo.payer, // must be strategist
           authority: _vault.authority,
@@ -1920,7 +1928,7 @@ export class VaultClient extends AccountUtils {
     );
 
     if (executeTransaction) {
-      return this.vaultProgram.rpc.withdraw(amount, {
+      return this.vaultProgram.rpc.withdraw(amount as any, {
         accounts: {
           payer: signerInfo.payer,
           authority: _vault.authority,
@@ -2234,8 +2242,8 @@ export class VaultClient extends AccountUtils {
     if (executeTransaction) {
       return this.vaultProgram.rpc.swapOrca(
         bump, // irrelevant for now, only PDAs
-        amountInU64,
-        minimumAmountOutU64,
+        amountInU64 as any,
+        minimumAmountOutU64 as any,
         {
           accounts: {
             payer: signerInfo.payer,
