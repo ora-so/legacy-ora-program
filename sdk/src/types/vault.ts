@@ -337,184 +337,6 @@ export type Vault = {
       ]
     },
     {
-      "name": "processClaims",
-      "accounts": [
-        {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "claim",
-      "accounts": [
-        {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "history",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "lp",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "destinationAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "destinationLpAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "ataProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "withdraw",
-      "accounts": [
-        {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "lp",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceLp",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "destinationAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "ataProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "amount",
-          "type": "u64"
-        }
-      ]
-    },
-    {
       "name": "investSaber",
       "accounts": [
         {
@@ -726,6 +548,113 @@ export type Vault = {
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "processClaims",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "history",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "lp",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationLpAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "ataProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
     },
     {
       "name": "initializeUserFarmOrca",
@@ -1328,6 +1257,82 @@ export type Vault = {
       ]
     },
     {
+      "name": "withdraw",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "lp",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceLp",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "ataProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "swapOrca",
       "accounts": [
         {
@@ -1459,6 +1464,14 @@ export type Vault = {
             "type": "publicKey"
           },
           {
+            "name": "tokenA",
+            "type": "publicKey"
+          },
+          {
+            "name": "tokenB",
+            "type": "publicKey"
+          },
+          {
             "name": "baseLp",
             "type": "publicKey"
           },
@@ -1553,6 +1566,10 @@ export type Vault = {
           {
             "name": "claim",
             "type": "u64"
+          },
+          {
+            "name": "canClaimTrancheLp",
+            "type": "bool"
           }
         ]
       }
@@ -1648,22 +1665,6 @@ export type Vault = {
             "type": {
               "option": "publicKey"
             }
-          },
-          {
-            "name": "excess",
-            "type": {
-              "option": "publicKey"
-            }
-          },
-          {
-            "name": "claimsProcessed",
-            "type": "bool"
-          },
-          {
-            "name": "claimsIdx",
-            "type": {
-              "option": "u64"
-            }
           }
         ]
       }
@@ -1686,20 +1687,6 @@ export type Vault = {
           {
             "name": "alphaToBeta",
             "type": "bool"
-          }
-        ]
-      }
-    },
-    {
-      "name": "WithdrawConfig",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "amount",
-            "type": {
-              "option": "u64"
-            }
           }
         ]
       }
@@ -1756,6 +1743,16 @@ export type Vault = {
           {
             "name": "rolloverDeposited",
             "type": "u64"
+          },
+          {
+            "name": "claimsProcessed",
+            "type": "bool"
+          },
+          {
+            "name": "claimsIdx",
+            "type": {
+              "option": "u64"
+            }
           }
         ]
       }
@@ -1940,6 +1937,9 @@ export type Vault = {
           },
           {
             "name": "DecimalMismatch"
+          },
+          {
+            "name": "AlreadyClaimedLpTokens"
           }
         ]
       }
@@ -2323,184 +2323,6 @@ export const IDL: Vault = {
       ]
     },
     {
-      "name": "processClaims",
-      "accounts": [
-        {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "claim",
-      "accounts": [
-        {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "history",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "lp",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "destinationAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "destinationLpAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "ataProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "withdraw",
-      "accounts": [
-        {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "lp",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceLp",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "destinationAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "ataProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "amount",
-          "type": "u64"
-        }
-      ]
-    },
-    {
       "name": "investSaber",
       "accounts": [
         {
@@ -2712,6 +2534,113 @@ export const IDL: Vault = {
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "processClaims",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "history",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "lp",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationLpAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "ataProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
     },
     {
       "name": "initializeUserFarmOrca",
@@ -3314,6 +3243,82 @@ export const IDL: Vault = {
       ]
     },
     {
+      "name": "withdraw",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "lp",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceLp",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "ataProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "swapOrca",
       "accounts": [
         {
@@ -3445,6 +3450,14 @@ export const IDL: Vault = {
             "type": "publicKey"
           },
           {
+            "name": "tokenA",
+            "type": "publicKey"
+          },
+          {
+            "name": "tokenB",
+            "type": "publicKey"
+          },
+          {
             "name": "baseLp",
             "type": "publicKey"
           },
@@ -3539,6 +3552,10 @@ export const IDL: Vault = {
           {
             "name": "claim",
             "type": "u64"
+          },
+          {
+            "name": "canClaimTrancheLp",
+            "type": "bool"
           }
         ]
       }
@@ -3634,22 +3651,6 @@ export const IDL: Vault = {
             "type": {
               "option": "publicKey"
             }
-          },
-          {
-            "name": "excess",
-            "type": {
-              "option": "publicKey"
-            }
-          },
-          {
-            "name": "claimsProcessed",
-            "type": "bool"
-          },
-          {
-            "name": "claimsIdx",
-            "type": {
-              "option": "u64"
-            }
           }
         ]
       }
@@ -3672,20 +3673,6 @@ export const IDL: Vault = {
           {
             "name": "alphaToBeta",
             "type": "bool"
-          }
-        ]
-      }
-    },
-    {
-      "name": "WithdrawConfig",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "amount",
-            "type": {
-              "option": "u64"
-            }
           }
         ]
       }
@@ -3742,6 +3729,16 @@ export const IDL: Vault = {
           {
             "name": "rolloverDeposited",
             "type": "u64"
+          },
+          {
+            "name": "claimsProcessed",
+            "type": "bool"
+          },
+          {
+            "name": "claimsIdx",
+            "type": {
+              "option": "u64"
+            }
           }
         ]
       }
@@ -3926,6 +3923,9 @@ export const IDL: Vault = {
           },
           {
             "name": "DecimalMismatch"
+          },
+          {
+            "name": "AlreadyClaimedLpTokens"
           }
         ]
       }

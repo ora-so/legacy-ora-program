@@ -85,4 +85,6 @@ pub enum ErrorCode {
     UnexpectedAuthority,
     #[msg("Decimal mismatch")]
     DecimalMismatch,
+    #[msg("Already claimed LP tokens")]
+    AlreadyClaimedLpTokens,
 }

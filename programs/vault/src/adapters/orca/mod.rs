@@ -1,7 +1,6 @@
 pub mod external;
 
 // todo: figure out how to get rid of the double error code import (right now * is due to saber's unwrap_or_err method)
-// use crate::error::ErrorCode;
 use crate::{
     constant::{FARM_VAULT_SEED, GLOBAL_STATE_SEED, STRATEGY_SEED, VAULT_SEED},
     convert_lp::Converter,
@@ -9,7 +8,7 @@ use crate::{
     harvest::Harvester,
     init_strategy::StrategyInitializer,
     init_user_farm::FarmInitializer,
-    invest::{verify_investment, Invest},
+    invest::{Invest},
     redeem::{Redeem, SwapConfig},
     revert_lp::Reverter,
     state::{GlobalProtocolState, HasVault, StrategyFlag, Vault},
@@ -23,11 +22,65 @@ use external::*;
 use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
 use vipers::unwrap_or_err;
+use crate::error::{OraResult, ErrorCode};
+
+pub struct PoolEndpoints<'info> {
+    /// CHECK: temp struct we build ourselves
+    pub user: AccountInfo<'info>,
+    /// CHECK: temp struct we build ourselves
+    pub pool: AccountInfo<'info>,
+}
+
+// map pool tokens A & B to vault tranche assets
+pub fn into_pool_endpoints<'info>(
+    alpha_mint: &Pubkey,
+    beta_mint: &Pubkey,
+    source_token_a_account_info: AccountInfo<'info>,
+    from_token_a_account_info: AccountInfo<'info>,
+    source_token_b_account_info: AccountInfo<'info>,
+    from_token_b_account_info: AccountInfo<'info>
+) -> OraResult<(PoolEndpoints<'info>, PoolEndpoints<'info>)> {
+    let alpha_asset: PoolEndpoints;
+    let beta_asset: PoolEndpoints;
+
+    // todo: migrate to match arm
+    if source_token_a_account_info.key == alpha_mint
+        && source_token_b_account_info.key == beta_mint
+    {
+        alpha_asset = PoolEndpoints {
+            user: source_token_a_account_info,
+            pool: from_token_a_account_info,
+        };
+
+        beta_asset = PoolEndpoints {
+            user: source_token_b_account_info,
+            pool: from_token_b_account_info,
+        };
+    } else if source_token_a_account_info.key == beta_mint
+        && source_token_b_account_info.key == alpha_mint
+    {
+        alpha_asset = PoolEndpoints {
+            user: source_token_b_account_info,
+            pool: from_token_b_account_info,
+        };
+
+        beta_asset = PoolEndpoints {
+            user: source_token_a_account_info,
+            pool: from_token_a_account_info,
+        };
+    } else {
+        return Err(PublicKeyMismatch.into());
+    }
+
+    Ok((alpha_asset, beta_asset))
+}
 
 #[repr(C)]
 pub struct OrcaConfig {
     pub swap_program: Pubkey,
     pub farm_program: Pubkey,
+    pub token_a: Pubkey,
+    pub token_b: Pubkey,
     pub base_lp: Pubkey,
     pub farm_lp: Pubkey,
     pub double_dip_lp: Option<Pubkey>,
@@ -46,6 +99,10 @@ pub struct OrcaStrategyDataV0 {
     pub swap_program: Pubkey,
     /// public key for the orca farm program
     pub farm_program: Pubkey,
+    /// Pubkey token A
+    pub token_a: Pubkey,
+    /// Pubkey token B
+    pub token_b: Pubkey,
     /// LP mint for a base pool
     pub base_lp: Pubkey,
     /// LP mint for a given pool's aquafarm
@@ -69,6 +126,8 @@ impl OrcaStrategyDataV0 {
         self.version = version;
         self.swap_program = config.swap_program;
         self.farm_program = config.farm_program;
+        self.token_a = config.token_a;
+        self.token_b = config.token_b;
         self.base_lp = config.base_lp;
         self.farm_lp = config.farm_lp;
         self.double_dip_lp = config.double_dip_lp;
@@ -160,6 +219,8 @@ impl<'info> StrategyInitializer<'info> for InitializeOrca<'info> {
             OrcaConfig {
                 swap_program: *self.swap_program.key,
                 farm_program: *self.farm_program.key,
+                token_a: self.token_a.key(),
+                token_b: self.token_b.key(),
                 base_lp: *self.base_lp.key,
                 farm_lp: *self.farm_lp.key,
                 double_dip_lp: _double_dip_lp,
@@ -250,7 +311,7 @@ pub struct InvestOrca<'info> {
 impl_has_vault!(InvestOrca<'_>);
 
 impl<'info> Invest<'info> for InvestOrca<'info> {
-    fn invest(&mut self, amount_a: u64, amount_b: u64, min_out: u64) -> ProgramResult {
+    fn invest(&mut self, amount_a: u64, amount_b: u64, min_out: u64) -> OraResult<(u64, u64)> {
         let orca_swap_program_account_info = self.orca_swap_program.to_account_info();
         // root orca swap program ID, now we can make assume Orca will correctly verify orca related accounts during CPI
         require!(
@@ -258,9 +319,23 @@ impl<'info> Invest<'info> for InvestOrca<'info> {
             PublicKeyMismatch
         );
 
+        let vault_alpha_mint = self.vault.alpha.mint;
+        let vault_beta_mint = self.vault.beta.mint;
+
+        let (alpha_asset, beta_asset) = into_pool_endpoints(
+            &vault_alpha_mint,
+            &vault_beta_mint,
+            self.source_token_a.to_account_info(),
+            self.into_a.to_account_info(),
+            self.source_token_b.to_account_info(),
+            self.into_b.to_account_info()
+        )?;
+
+        let alpha_amount_before = get_spl_amount(&alpha_asset.user)?;
+        let beta_amount_before = get_spl_amount(&beta_asset.user)?;
+
         let vault_signer_seeds =
             generate_vault_seeds!(*self.authority.key.as_ref(), self.vault.bump);
-
         deposit(
             CreatePoolDeposit {
                 orca_swap_program: orca_swap_program_account_info,
@@ -281,23 +356,23 @@ impl<'info> Invest<'info> for InvestOrca<'info> {
             &[vault_signer_seeds],
         )?;
 
-        Ok(())
-    }
+        let alpha_amount_after = get_spl_amount(&alpha_asset.user)?;
+        let beta_amount_after = get_spl_amount(&beta_asset.user)?;
 
-    fn verify_junior_investment(&mut self, amount: u64) -> ProgramResult {
-        let vault = &mut self.vault;
-        let token_a_account_info = &self.source_token_a.to_account_info();
-        verify_investment(token_a_account_info, vault.alpha.mint, amount, vault)?;
+        // before - after because we invest funds, so before > after
+        let alpha_invested_amount = alpha_amount_before
+            .checked_sub(alpha_amount_after)
+            .ok_or_else(math_error!())?;
 
-        Ok(())
-    }
+        let beta_invested_amount = beta_amount_before
+            .checked_sub(beta_amount_after)
+            .ok_or_else(math_error!())?;
 
-    fn verify_senior_investment(&mut self, amount: u64) -> ProgramResult {
-        let vault = &mut self.vault;
-        let token_b_account_info = &self.source_token_b.to_account_info();
-        verify_investment(token_b_account_info, vault.beta.mint, amount, vault)?;
+        let mutable_vault = self.vault_mut();
+        mutable_vault.get_alpha_mut()?.update_with_investment(alpha_invested_amount)?;
+        mutable_vault.get_beta_mut()?.update_with_investment(beta_invested_amount)?;
 
-        Ok(())
+        Ok((alpha_invested_amount, beta_invested_amount))
     }
 }
 
@@ -383,13 +458,6 @@ pub struct RedeemOrca<'info> {
 
 impl_has_vault!(RedeemOrca<'_>);
 
-pub struct SwapEndpoints<'info> {
-    /// CHECK: temp struct we build ourselves
-    pub user: AccountInfo<'info>,
-    /// CHECK: temp struct we build ourselves
-    pub pool: AccountInfo<'info>,
-}
-
 impl<'info> Redeem<'info> for RedeemOrca<'info> {
     fn redeem(&mut self, min_token_a: u64, min_token_b: u64) -> ProgramResult {
         let orca_swap_program_account_info = self.orca_swap_program.to_account_info();
@@ -401,9 +469,27 @@ impl<'info> Redeem<'info> for RedeemOrca<'info> {
 
         let vault_lp_ata_amount = self.source_pool_account.amount;
         msg!(
-            "Vault ATA LP tokens before withdrawal: {:?}",
-            vault_lp_ata_amount
+            "Burn {:?} pool LP tokens in exchange for {:?} A and {:?} B",
+            vault_lp_ata_amount,
+            min_token_a,
+            min_token_b
         );
+
+        // map pool tokens A & B to vault tranche assets
+        let vault_alpha_mint = self.vault.alpha.mint;
+        let vault_beta_mint = self.vault.beta.mint;
+
+        let (alpha_asset, beta_asset) = into_pool_endpoints(
+            &vault_alpha_mint,
+            &vault_beta_mint,
+            self.source_token_a.to_account_info(),
+            self.from_a.to_account_info(),
+            self.source_token_b.to_account_info(),
+            self.from_b.to_account_info()
+        )?;
+
+        let alpha_amount_before = get_spl_amount(&alpha_asset.user)?;
+        let beta_amount_before = get_spl_amount(&beta_asset.user)?;
 
         let vault_signer_seeds =
             generate_vault_seeds!(*self.authority.key.as_ref(), self.vault.bump);
@@ -420,7 +506,7 @@ impl<'info> Redeem<'info> for RedeemOrca<'info> {
                 from_a: self.from_a.to_account_info(),
                 from_b: self.from_b.to_account_info(),
                 user_account_a: self.source_token_a.to_account_info(),
-                user_account_b: self.source_token_a.to_account_info(),
+                user_account_b: self.source_token_b.to_account_info(),
                 fee_account: self.fee_account.to_account_info(),
                 token_program: self.token_program.to_account_info(),
             },
@@ -430,62 +516,53 @@ impl<'info> Redeem<'info> for RedeemOrca<'info> {
             &[vault_signer_seeds],
         )?;
 
+        let alpha_amount_after = get_spl_amount(&alpha_asset.user)?;
+        let beta_amount_after = get_spl_amount(&beta_asset.user)?;
+
+        // after - before because we redeem funds, so after > before
+        let alpha_withdrawal_amount = alpha_amount_after
+            .checked_sub(alpha_amount_before)
+            .ok_or_else(math_error!())?;
+
+        let beta_withdrawal_amount = beta_amount_after
+            .checked_sub(beta_amount_before)
+            .ok_or_else(math_error!())?;
+
+        let mutable_vault = self.vault_mut();
+        mutable_vault.get_alpha_mut()?.add_receipt(alpha_withdrawal_amount)?;
+        mutable_vault.get_beta_mut()?.add_receipt(beta_withdrawal_amount)?;
+
         Ok(())
     }
 
     // question: how much of this code can be re-used across adapters? probably at least the pool assets -> vault tranche
     fn adjust_returns(&mut self, swap_config: Option<SwapConfig>) -> ProgramResult {
-        // exit early without swap config
+        // exit early without a valid swap config
         let _swap_config = match swap_config {
             Some(x) => x,
             None => return Ok(()),
         };
 
-        // nothing to swap, exit early
-        if _swap_config.max_in <= 0 {
+        // only perform swap and update received values if max_in is non-zero and positive
+        if _swap_config.max_in == 0 {
             return Ok(());
         }
-
-        let source_token_a_account_info = self.source_token_a.to_account_info();
-        let from_token_a_account_info = self.from_a.to_account_info();
-        let source_token_b_account_info = self.source_token_b.to_account_info();
-        let from_token_b_account_info = self.from_b.to_account_info();
 
         // map pool tokens A & B to vault tranche assets
         let vault_alpha_mint = self.vault.alpha.mint;
         let vault_beta_mint = self.vault.beta.mint;
 
-        let alpha_asset: SwapEndpoints;
-        let beta_asset: SwapEndpoints;
+        let (alpha_asset, beta_asset) = into_pool_endpoints(
+            &vault_alpha_mint,
+            &vault_beta_mint,
+            self.source_token_a.to_account_info(),
+            self.from_a.to_account_info(),
+            self.source_token_b.to_account_info(),
+            self.from_b.to_account_info()
+        )?;
 
-        // todo: migrate to match arm
-        if *source_token_a_account_info.key == vault_alpha_mint
-            && *source_token_b_account_info.key == vault_beta_mint
-        {
-            alpha_asset = SwapEndpoints {
-                user: source_token_a_account_info,
-                pool: from_token_a_account_info,
-            };
-
-            beta_asset = SwapEndpoints {
-                user: source_token_b_account_info,
-                pool: from_token_b_account_info,
-            };
-        } else if *source_token_a_account_info.key == vault_beta_mint
-            && *source_token_b_account_info.key == vault_alpha_mint
-        {
-            alpha_asset = SwapEndpoints {
-                user: source_token_b_account_info,
-                pool: from_token_b_account_info,
-            };
-
-            beta_asset = SwapEndpoints {
-                user: source_token_a_account_info,
-                pool: from_token_a_account_info,
-            };
-        } else {
-            return Err(PublicKeyMismatch.into());
-        }
+        let alpha_amount_before = get_spl_amount(&alpha_asset.user)?;
+        let beta_amount_before = get_spl_amount(&beta_asset.user)?;
 
         let user_source: AccountInfo<'info>;
         let pool_source: AccountInfo<'info>;
@@ -495,16 +572,18 @@ impl<'info> Redeem<'info> for RedeemOrca<'info> {
         match _swap_config.alpha_to_beta {
             // swap for alpha for beta
             true => {
-                user_source = alpha_asset.user;
+                msg!("swap {:?} alpha for {:?} beta", _swap_config.max_in, _swap_config.min_out);
+                user_source = alpha_asset.user.clone();
                 pool_source = alpha_asset.pool;
-                user_destination = beta_asset.user;
+                user_destination = beta_asset.user.clone();
                 pool_destination = beta_asset.pool;
             }
             // ^_swap_config.alpha_to_beta; swap for beta for alpha
             false => {
-                user_source = beta_asset.user;
+                msg!("swap {:?} beta for {:?} alpha", _swap_config.max_in, _swap_config.min_out);
+                user_source = beta_asset.user.clone();
                 pool_source = beta_asset.pool;
-                user_destination = alpha_asset.user;
+                user_destination = alpha_asset.user.clone();
                 pool_destination = alpha_asset.pool;
             }
         };
@@ -531,16 +610,41 @@ impl<'info> Redeem<'info> for RedeemOrca<'info> {
             &[vault_signer_seeds],
         )?;
 
-        // finally, update amounts received for alpha & beta
-        self.vault.update_receipt(
-            &vault_alpha_mint,
-            get_spl_amount(&self.source_token_a.to_account_info())?,
-        )?;
+        let alpha_amount_after = get_spl_amount(&alpha_asset.user)?;
+        let beta_amount_after = get_spl_amount(&beta_asset.user)?;
 
-        self.vault.update_receipt(
-            &vault_beta_mint,
-            get_spl_amount(&self.source_token_b.to_account_info())?,
-        )?;
+        // update received amounts for vault tranches
+        let mutable_vault = self.vault_mut();
+        match _swap_config.alpha_to_beta {
+            // swapped for alpha for beta
+            true => {
+                // before > after => before - after > 0
+                let alpha_delta = alpha_amount_before
+                    .checked_sub(alpha_amount_after)
+                    .ok_or_else(math_error!())?;
+                mutable_vault.get_alpha_mut()?.sub_receipt(alpha_delta)?;
+
+                // after > before => after - before > 0
+                let beta_delta = beta_amount_after
+                    .checked_sub(beta_amount_before)
+                    .ok_or_else(math_error!())?;
+                mutable_vault.get_beta_mut()?.add_receipt(beta_delta)?;
+            }
+            // ^_swap_config.alpha_to_beta; swapped for beta for alpha
+            false => {
+                // after > before => after - before > 0
+                let alpha_delta = alpha_amount_after
+                    .checked_sub(alpha_amount_before)
+                    .ok_or_else(math_error!())?;
+                mutable_vault.get_alpha_mut()?.add_receipt(alpha_delta)?;
+
+                // before > after => before - after > 0
+                let beta_delta = beta_amount_before
+                    .checked_sub(beta_amount_after)
+                    .ok_or_else(math_error!())?;
+                mutable_vault.get_beta_mut()?.sub_receipt(beta_delta)?;
+            }
+        };
 
         Ok(())
     }

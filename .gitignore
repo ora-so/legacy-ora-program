@@ -48,3 +48,4 @@ target
 **/*.txt
 vaultKeys
 /idl
+mintKeys

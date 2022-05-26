@@ -1,7 +1,8 @@
 use crate::{
+    error::OraResult,
     constant::{GLOBAL_STATE_SEED, STRATEGY_SEED, VAULT_SEED},
     init_strategy::StrategyInitializer,
-    invest::{verify_investment, Invest},
+    invest::{Invest},
     redeem::{verify_received, Redeem, SwapConfig},
     state::{GlobalProtocolState, HasVault, StrategyFlag, Vault},
 };
@@ -158,7 +159,7 @@ pub struct InvestSaber<'info> {
 impl_has_vault!(InvestSaber<'_>);
 
 impl<'info> Invest<'info> for InvestSaber<'info> {
-    fn invest(&mut self, amount_a: u64, amount_b: u64, min_out: u64) -> ProgramResult {
+    fn invest(&mut self, amount_a: u64, amount_b: u64, min_out: u64) -> OraResult<(u64, u64)> {
         let vault_signer_seeds =
             generate_vault_seeds!(*self.authority.key.as_ref(), self.vault.bump);
 
@@ -170,23 +171,7 @@ impl<'info> Invest<'info> for InvestSaber<'info> {
             min_out,
         )?;
 
-        Ok(())
-    }
-
-    fn verify_junior_investment(&mut self, amount: u64) -> ProgramResult {
-        let vault = &mut self.vault;
-        let token_a_account_info = &self.saber_swap_common.source_token_a.to_account_info();
-        verify_investment(token_a_account_info, vault.alpha.mint, amount, vault)?;
-
-        Ok(())
-    }
-
-    fn verify_senior_investment(&mut self, amount: u64) -> ProgramResult {
-        let vault = &mut self.vault;
-        let token_b_account_info = &self.saber_swap_common.source_token_b.to_account_info();
-        verify_investment(token_b_account_info, vault.beta.mint, amount, vault)?;
-
-        Ok(())
+        Ok((amount_a, amount_b))
     }
 }
 

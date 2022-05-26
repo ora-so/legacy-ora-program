@@ -1,7 +1,7 @@
 [features]
 seeds = false
 [programs.localnet]
-vault = "3SAKahh1Tpk6r3iDyTCYk1L1rB3SogYjVm5c5eSoz4zu"
+vault = "CRDRY8VKkjPBBoyurn3jQdy7n2TjgexDqfePno5gnQxV"
 
 [registry]
 url = "https://anchor.projectserum.com"

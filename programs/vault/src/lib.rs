@@ -15,7 +15,7 @@ use error::ErrorCode;
 use instructions::*;
 use state::{GlobalProtocolState, VaultConfig};
 
-declare_id!("3SAKahh1Tpk6r3iDyTCYk1L1rB3SogYjVm5c5eSoz4zu");
+declare_id!("CRDRY8VKkjPBBoyurn3jQdy7n2TjgexDqfePno5gnQxV");
 
 #[program]
 pub mod vault {
@@ -78,27 +78,6 @@ pub mod vault {
         Ok(())
     }
 
-    #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
-    pub fn process_claims(ctx: Context<ProcessClaims>) -> ProgramResult {
-        instructions::process_claims::handle(ctx)?;
-
-        Ok(())
-    }
-
-    #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
-    pub fn claim(ctx: Context<Claim>) -> ProgramResult {
-        instructions::claim::handle(ctx)?;
-
-        Ok(())
-    }
-
-    #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
-    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
-        instructions::withdraw::handle(ctx, amount)?;
-
-        Ok(())
-    }
-
     // todo: update logic that maps A/B pair to vault alpha/beta
     #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
     pub fn invest_saber<'info>(
@@ -121,6 +100,20 @@ pub mod vault {
         min_tokens_back: u64,
     ) -> ProgramResult {
         instructions::invest::handle(ctx, investable_a, investable_b, min_tokens_back)?;
+
+        Ok(())
+    }
+
+    #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
+    pub fn process_claims(ctx: Context<ProcessClaims>) -> ProgramResult {
+        instructions::process_claims::handle(ctx)?;
+
+        Ok(())
+    }
+
+    #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
+    pub fn claim(ctx: Context<Claim>) -> ProgramResult {
+        instructions::claim::handle(ctx)?;
 
         Ok(())
     }
@@ -187,6 +180,13 @@ pub mod vault {
         swap_config: Option<SwapConfig>,
     ) -> ProgramResult {
         instructions::redeem::handle(ctx, min_token_a, min_token_b, swap_config)?;
+
+        Ok(())
+    }
+
+    #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
+    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
+        instructions::withdraw::handle(ctx, amount)?;
 
         Ok(())
     }

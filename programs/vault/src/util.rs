@@ -408,6 +408,27 @@ pub fn transfer_lamports(
     Ok(())
 }
 
+pub fn spl_token_transfer<'info>(
+    token_program: AccountInfo<'info>,
+    source: AccountInfo<'info>,
+    destination: AccountInfo<'info>,
+    transfer_authority: AccountInfo<'info>,
+    transfer_authority_seeds: &[&[&[u8]]],
+    amount: u64,
+) -> ProgramResult {
+    msg!("transfer CPI");
+    let context = CpiContext::new(
+        token_program,
+        Transfer {
+            from: source,
+            to: destination,
+            authority: transfer_authority
+        },
+    );
+
+    transfer(context.with_signer(transfer_authority_seeds), amount)
+}
+
 pub fn transfer_tokens<'info>(
     source: AccountInfo<'info>,
     dest: AccountInfo<'info>,
@@ -445,17 +466,14 @@ pub fn transfer_tokens<'info>(
     } else {
         // use token transfer, decide whether authority is vault or payer
 
-        msg!("transfer CPI");
-        let context = CpiContext::new(
+        spl_token_transfer(
             token_program,
-            Transfer {
-                from: source,
-                to: dest,
-                authority,
-            },
-        );
-
-        transfer(context.with_signer(signer_seeds), amount)?;
+            source,
+            dest,
+            authority,
+            signer_seeds,
+            amount
+        )?;
     }
 
     Ok(())

@@ -47,6 +47,8 @@ impl Default for State {
     }
 }
 
+// todo: on vault, have function that takes in source, dest atas and return wehther it's alpha / beta
+
 #[account]
 #[derive(Debug, Default, PartialEq)]
 pub struct Vault {
@@ -77,11 +79,6 @@ pub struct Vault {
     /// since interactions require the account to carry 0 data.
     /// None until assigned.
     pub farm_vault: Option<Pubkey>,
-
-    /// optional: asset for which we have an
-    pub excess: Option<Pubkey>,
-    pub claims_processed: bool,
-    pub claims_idx: Option<u64>,
 }
 
 impl Vault {
@@ -110,11 +107,6 @@ impl Vault {
         self.state = State::Inactive;
 
         self.farm_vault = None;
-
-        // excess related metadata; value set at time of investment
-        self.excess = None;
-        self.claims_processed = false;
-        self.claims_idx = None;
     }
 
     pub fn update_authority(&mut self, authority: Pubkey) {
@@ -125,7 +117,7 @@ impl Vault {
         self.strategist = strategist;
     }
 
-    pub fn vault_has_deposits(&self) -> bool {
+    pub fn has_deposits(&self) -> bool {
         return self.alpha.has_deposits() && self.beta.has_deposits();
     }
 
@@ -182,6 +174,14 @@ impl Vault {
         Ok(asset)
     }
 
+    pub fn get_alpha_mut<'a>(&'a mut self) -> Result<&'a mut Asset, ProgramError> {
+        Ok(&mut self.alpha)
+    }
+
+    pub fn get_beta_mut<'a>(&'a mut self) -> Result<&'a mut Asset, ProgramError> {
+        Ok(&mut self.beta)
+    }
+
     pub fn get_asset_mut<'a>(&'a mut self, mint: &Pubkey) -> Result<&'a mut Asset, ProgramError> {
         let asset = match *mint {
             m if self.alpha.mint == m => &mut self.alpha,
@@ -193,78 +193,15 @@ impl Vault {
     }
 
     pub fn update_deposit<'a>(&'a mut self, mint: &Pubkey, amount: u64) -> ProgramResult {
-        self.get_asset_mut(mint)?.add_deposit(amount)?;
-
-        Ok(())
-    }
-
-    pub fn update_investment(
-        &mut self,
-        mint: &Pubkey,
-        total: u64,
-        investable: u64,
-    ) -> ProgramResult {
-        let asset = self.get_asset_mut(mint)?;
-        let excess = total.checked_sub(investable).ok_or_else(math_error!())?;
-
-        asset.add_investment(investable)?;
-
-        if excess > 0 {
-            asset.add_excess(excess)?;
-
-            require!(
-                self.excess.is_none(),
-                ErrorCode::DualSidedExcesssNotPossible
-            );
-
-            self.excess = Some(*mint);
-        }
-
-        Ok(())
+        self.get_asset_mut(mint)?.add_deposit(amount)
     }
 
     pub fn update_receipt(&mut self, mint: &Pubkey, amount: u64) -> ProgramResult {
-        self.get_asset_mut(mint)?.add_receipt(amount)?;
-
-        Ok(())
+        self.get_asset_mut(mint)?.add_receipt(amount)
     }
 
-    // set_excess_if_possible
-    pub fn set_excess_if_possible(&mut self) -> ProgramResult {
-        // we processed excess before
-        if self.excess.is_some() {
-            return Ok(());
-        }
-
-        // todo: valid assumption? one side of the vault should have no extra assets
-        require!(
-            self.alpha.excess == 0 || self.beta.excess == 0,
-            ErrorCode::DualSidedExcesssNotPossible
-        );
-
-        if self.alpha.excess > 0 {
-            self.excess = Some(self.alpha.mint);
-        } else if self.beta.excess > 0 {
-            self.excess = Some(self.beta.mint);
-        }
-
-        Ok(())
-    }
-
-    pub fn finalize_claims(&mut self) {
-        self.claims_processed = true;
-    }
-
-    pub fn claims_already_processed(&self) -> bool {
-        return self.claims_processed;
-    }
-
-    pub fn update_claims_index(&mut self, index: u64) {
-        self.claims_idx = Some(index);
-    }
-
-    pub fn can_users_claim(&self) -> bool {
-        return self.claims_processed
+    pub fn in_claimable_state(&self, asset: &Asset) -> bool {
+        return  asset.claims_already_processed()
             && self.state != State::Deposit
             && self.state != State::Inactive;
     }

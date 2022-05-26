@@ -6,9 +6,9 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
+use std::ops::DerefMut;
 
 #[derive(Accounts)]
-#[instruction(deposit_index: u64)]
 pub struct Claim<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
@@ -50,19 +50,13 @@ pub struct Claim<'info> {
     #[account(mut)]
     pub lp: Box<Account<'info, Mint>>,
 
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = vault,
-    )]
-    pub source_ata: Box<Account<'info, TokenAccount>>,
+    /// CHECK: can be wrapped wSOL, so not a TokenAccount. Validation done via Token Program CPI.
+    #[account(mut)]
+    pub source_ata: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = payer,
-    )]
-    pub destination_ata: Box<Account<'info, TokenAccount>>,
+    /// CHECK: can be wrapped wSOL, so not a TokenAccount. Validation done via Token Program CPI.
+    #[account(mut)]
+    pub destination_ata: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -93,26 +87,25 @@ pub struct Claim<'info> {
 ///
 /// This instruction can only be invoked after the funds are invested and the claims are processed.
 ///
+// todo: check this thoroughly
 pub fn handle(ctx: Context<Claim>) -> ProgramResult {
+    let asset = ctx.accounts.vault.get_asset(&ctx.accounts.mint.key())?;
     require!(
-        ctx.accounts.vault.can_users_claim(),
+        ctx.accounts.vault.in_claimable_state(&asset),
         ErrorCode::InvalidVaultState
     );
 
     // verify mint and lp from vault vs instruction accounts
-    let asset = ctx.accounts.vault.get_asset(&ctx.accounts.mint.key())?;
     require!(ctx.accounts.lp.key() == asset.lp, ErrorCode::InvalidLpMint);
 
     let claim_amount = ctx.accounts.history.claim;
     let deposit_amount = ctx.accounts.history.cumulative;
-    let lp_amount = deposit_amount
-        .checked_sub(claim_amount)
-        .ok_or_else(math_error!())?;
 
     let authority = ctx.accounts.authority.key();
     let vault_signer_seeds = generate_vault_seeds!(authority.as_ref(), ctx.accounts.vault.bump);
 
     if claim_amount > 0 {
+        msg!("claim amount: {:?}", claim_amount);
         transfer_with_verified_ata(
             ctx.accounts.source_ata.to_account_info(),
             ctx.accounts.destination_ata.to_account_info(),
@@ -128,10 +121,17 @@ pub fn handle(ctx: Context<Claim>) -> ProgramResult {
             vault_signer_seeds, // todo: does this work?
             claim_amount,
         )?;
+
+        ctx.accounts.history.deref_mut().reset_claim();
     }
 
     // mint LP (SPL token) to user relative to the deposited amount to represent their position
-    if lp_amount > 0 {
+    if ctx.accounts.history.can_claim_tranche_lp {
+        let lp_amount = deposit_amount
+            .checked_sub(claim_amount)
+            .ok_or_else(math_error!())?;
+        msg!("Tranche token amount: {:?}", lp_amount);
+
         mint_with_verified_ata(
             ctx.accounts.destination_lp_ata.to_account_info(),
             ctx.accounts.payer.to_account_info(),
@@ -146,6 +146,8 @@ pub fn handle(ctx: Context<Claim>) -> ProgramResult {
             vault_signer_seeds,
             lp_amount, // 1-1 asset to LP amount
         )?;
+    
+        ctx.accounts.history.deref_mut().claim_tranche_lp();
     }
 
     Ok(())

@@ -22,7 +22,8 @@ pub struct Asset {
     pub invested: u64,
     /// amount deposited but not invested
     pub excess: u64,
-    /// amount receieved once
+    /// amount receieved after withdrawing LP tokens for underlying liquidity,
+    // plus posssibly adjusting for fixed return in the senior tranche
     pub received: u64,
 
     // todo: update these values in code after midcycle LP deposits enabled
@@ -30,6 +31,11 @@ pub struct Asset {
     pub total_invested: u64,
     /// amount deposited by the rollover fund, with priority over other deposits
     pub rollover_deposited: u64,
+
+    /// boolean indicating whether or not depositors can refund excess deposits + tranche tokens
+    pub claims_processed: bool,
+    /// if claims_processed = false, this indicates where we are in the process claims process
+    pub claims_idx: Option<u64>,
 }
 
 impl Asset {
@@ -74,19 +80,66 @@ impl Asset {
         Ok(())
     }
 
+    pub fn verify_invested_amount(
+        &self,
+        target: u64,
+    ) -> std::result::Result<(), ProgramError> {
+        // lastly, verify that the target amount is under the asset cap
+        match self.asset_cap {
+            Some(asset_cap) => {
+                require!(target <= asset_cap, ErrorCode::AssetCapExceeded);
+                Ok(())
+            }
+            None => Ok(()),
+        }
+    }
+
+    pub fn update_with_investment(
+        &mut self,
+        invested_amount: u64,
+    ) -> ProgramResult {
+        self.verify_invested_amount(invested_amount)?;
+
+        self.add_investment(invested_amount)?;
+        self.add_excess(
+            self.deposited
+                .checked_sub(invested_amount)
+                .ok_or_else(math_error!())?
+        )?;
+
+        Ok(())
+    }
+
     pub fn add_excess(&mut self, excess: u64) -> Result<(), ProgramError> {
         self.excess = self.excess.checked_add(excess).ok_or_else(math_error!())?;
 
         Ok(())
     }
 
-    pub fn add_receipt(&mut self, received: u64) -> Result<(), ProgramError> {
-        self.received = self
-            .received
-            .checked_add(received)
-            .ok_or_else(math_error!())?;
+    pub fn add_receipt(&mut self, amount: u64) -> Result<(), ProgramError> {
+        self.received = self.received.checked_add(amount).ok_or_else(math_error!())?;
+        msg!("{:?} received amount, plus {:?} now = {:?}", self.mint, amount, self.received);
 
         Ok(())
+    }
+
+    pub fn sub_receipt(&mut self, amount: u64) -> Result<(), ProgramError> {
+        self.received = self.received.checked_sub(amount).ok_or_else(math_error!())?;
+        msg!("{:?} received amount, minus {:?} now = {:?}", self.mint, amount, self.received);
+
+        Ok(())
+    }
+
+    pub fn finalize_claims(&mut self) {
+        self.claims_processed = true;
+    }
+    
+    pub fn claims_already_processed(&self) -> bool {
+        return self.claims_processed;
+    }
+    
+    pub fn update_claims_index(&mut self, index: u64) {
+        self.claims_idx = Some(index);
     }
 }
 
@@ -151,6 +204,10 @@ impl AssetBuilder {
             received: 0,
             total_invested: 0,
             rollover_deposited: 0,
+
+            // excess related metadata; value set at time of investment
+            claims_processed: false,
+            claims_idx: None,
         })
     }
 }

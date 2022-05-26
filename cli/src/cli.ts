@@ -282,12 +282,6 @@ programCommand("show_orca_strategy")
       log.info("No double dip LP for strategy");
     }
 
-    if (strategy.farmVault) {
-      log.info("Farm vault: ", strategy.farmVault.toBase58());
-    } else {
-      log.info("Farm vault not assigned yet. ");
-    }
-
     log.info("===========================================");
   });
 
@@ -472,6 +466,12 @@ programCommand("show_vault")
     log.info("Excess: ", beta.excess.toNumber());
     log.info("Received: ", beta.received.toNumber());
 
+    if (_vault.farmVault) {
+      log.info("Farm vault: ", _vault.farmVault.toBase58());
+    } else {
+      log.info("Farm vault not assigned yet. ");
+    }
+
     log.info("Authority: ", _vault.authority.toBase58());
     log.info("Strategy: ", _vault.strategy.toBase58());
     log.info("Strategist: ", _vault.strategist.toBase58());
@@ -481,13 +481,145 @@ programCommand("show_vault")
     log.info("Vault invest at: ", _vault.investAt.toNumber());
     log.info("Vault redeem at: ", _vault.redeemAt.toNumber());
     log.info("===========================================");
-    log.info("Excess asset: ", _vault.excess ? _vault.excess : "Not defined");
+    log.info(
+      "Excess asset: ",
+      _vault.excess ? _vault.excess.toBase58() : "Not defined"
+    );
     log.info("Claims processed: ", _vault.claimsProcessed);
     log.info(
       "Claims index: ",
-      _vault.claimsIdx ? _vault.claimsIdx : "Not defined"
+      _vault.claimsIdx ? _vault.claimsIdx.toNumber() : "Not defined"
     );
     log.info("===========================================");
+  });
+
+programCommand("show_receipts")
+  .option(
+    "-v, --vault <pubkey>",
+    "Public key of the vault into which you want to deposit funds"
+  )
+  .option("-m --mint <pubkey>", "Public key of the asset you want to deposit")
+  .option("-e, --execute <boolean>", "Execute transaction or not")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, mint, execute } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _execute = execute === "true" ? true : false;
+    const _mint = new PublicKey(mint);
+    const _vault = new PublicKey(vault);
+    const __vault = await _client.fetchVault(_vault);
+    const _asset = _client.getAsset(toIVault(__vault), _mint);
+    const numDeposits = _asset.deposits.toNumber();
+    console.log(`numDeposits for ${_mint.toBase58()}: ${numDeposits}`);
+
+    for (let i = numDeposits; i > 0; i--) {
+      const { addr: receipt } = await _client.generateReceiptAddress(
+        _vault,
+        _mint,
+        toU64(i)
+      );
+
+      const _receipt = await _client.fetchReceipt(receipt);
+      console.log(`deposit ${i}'s receipt ${receipt.toBase58()}: `, _receipt);
+    }
+  });
+
+programCommand("show_depositors")
+  .option(
+    "-v, --vault <pubkey>",
+    "Public key of the vault into which you want to deposit funds"
+  )
+  .option("-m --mint <pubkey>", "Public key of the asset you want to deposit")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, mint } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+
+    const _mint = new PublicKey(mint);
+    const _vault = new PublicKey(vault);
+    const __vault = await _client.fetchVault(_vault);
+    const _asset = _client.getAsset(toIVault(__vault), _mint);
+    const numDeposits = _asset.deposits.toNumber();
+    console.log(`numDeposits for ${_mint.toBase58()}: ${numDeposits}`);
+
+    const depositors = new Map<string, number>();
+
+    for (let i = numDeposits; i > 0; i--) {
+      const { addr: receipt } = await _client.generateReceiptAddress(
+        _vault,
+        _mint,
+        toU64(i)
+      );
+
+      const _receipt = await _client.fetchReceipt(receipt);
+
+      const _depositor = _receipt.depositor.toBase58();
+      if (!depositors.has(_depositor)) {
+        depositors.set(_depositor, 0);
+      }
+      depositors.set(_depositor, depositors.get(_depositor) + 1);
+    }
+
+    console.log(
+      `Vault [${_vault.toBase58()}] with asset ${_asset.mint.toBase58()} had ${numDeposits} fromm ${
+        depositors.size
+      } unique depositors`
+    );
+    console.log("==========================================================");
+
+    for (const d of depositors) {
+      console.log(`Depositor ${d[0]} had ${d[1]} deposits`);
+    }
+  });
+
+programCommand("show_deposit_history")
+  .option(
+    "-v, --vault <pubkey>",
+    "Public key of the vault into which you want to deposit funds"
+  )
+  .option("-m --mint <pubkey>", "Public key of the asset you want to deposit")
+  .option("-d --depositor <pubkey>", "Public key of the depositor")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, mint, depositor } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+
+    const _vault = new PublicKey(vault);
+    const _depositor = new PublicKey(depositor);
+
+    const __vault = await _client.fetchVault(_vault);
+
+    let mints = [];
+    if (mint) {
+      mints.push(new PublicKey(mint));
+    } else {
+      mints.push(__vault.alpha.mint, __vault.beta.mint);
+    }
+
+    log.info("===========================================");
+    log.info(`Deposit history for ${_depositor.toBase58()}`);
+    for (const _mint of mints) {
+      const _asset = _client.getAsset(toIVault(__vault), _mint);
+      const numDeposits = _asset.deposits.toNumber();
+      console.log(`Num deposits for ${_mint.toBase58()}: ${numDeposits}`);
+
+      const { addr: history } = await _client.generateHistoryAddress(
+        _vault,
+        _mint,
+        _depositor
+      );
+
+      const _history = await _client.fetchHistory(history);
+
+      log.info(`Initialized: ${_history.intialized}`);
+      log.info(`Deposits: ${_history.deposits.toNumber()}`);
+      log.info(`Cumulative: ${_history.cumulative.toNumber()}`);
+      log.info(`Claim: ${_history.claim.toNumber()}`);
+      log.info("===========================================");
+    }
   });
 
 programCommand("deposit")
@@ -581,10 +713,6 @@ programCommand("withdraw")
   )
   .option("-m --mint <pubkey>", "Public key of the asset you want to deposit")
   .option(
-    "-tt --trancheToken <pubkey>",
-    "Public key of the LP representing the position in the vault"
-  )
-  .option(
     "-a --amount <number>",
     "Amount of funds to deposit. Ignore the decimal calculation - just provide the raw amount."
   )
@@ -599,18 +727,25 @@ programCommand("withdraw")
 
     const _vault = new PublicKey(vault);
     const _mint = new PublicKey(mint);
-    const _trancheToken = new PublicKey(trancheToken);
+    // const _trancheToken = new PublicKey(trancheToken);
+
+    const __vault = await _client.fetchVault(_vault);
+    const asset = _client.getAsset(toIVault(__vault), _mint);
 
     let _amount = ZERO_U64;
     if (amount !== null) {
-      const decimals = (await _client.fetchTokenSupply(_trancheToken)).decimals;
-      _amount = toU64(+amount * 10 ** decimals);
+      const balance = await _client.fetchTokenBalance(
+        asset.lp,
+        walletKeyPair.publicKey
+      );
+      _amount = toU64(balance);
     }
+    console.log("amount to withdraw: ", _amount.toNumber());
 
-    await _client.withdraw(
+    const tx = await _client.withdraw(
       _vault,
       _mint,
-      _trancheToken,
+      asset.lp,
       walletKeyPair,
       _amount,
       _execute
@@ -618,7 +753,7 @@ programCommand("withdraw")
 
     log.info("===========================================");
     log.info(
-      `Withdrew ${_amount.toNumber()} of ${_trancheToken.toBase58()} LP for underlying mint ${_mint.toBase58()} from vault ${_vault.toBase58()}`
+      `Withdrew ${_amount.toNumber()} of ${asset.lp.toBase58()} LP for underlying mint ${_mint.toBase58()} from vault ${_vault.toBase58()} in TX ${tx}`
     );
     log.info("===========================================");
   });
@@ -968,6 +1103,24 @@ programCommand("ts", false)
 // ============================================================================
 // token related commands
 // ============================================================================
+
+// mint with keypair as authority since it has to sign the tx & can be used to mint new tokens.
+programCommand("token_supply", false)
+  .option("-m, --mint <pubkey>", "Pubkey of token to check supply of.")
+  .option(
+    "-e, --env <string>",
+    "Solana cluster env name",
+    "devnet" // mainnet-beta, testnet, devnet
+  )
+  .action(async (_, cmd) => {
+    const { env, mint } = cmd.opts();
+
+    const _client = createClient(env, Keypair.generate());
+    const _mint = new PublicKey(mint);
+
+    const supply = await _client.provider.connection.getTokenSupply(_mint);
+    console.log(supply);
+  });
 
 // mint with keypair as authority since it has to sign the tx & can be used to mint new tokens.
 programCommand("mint")

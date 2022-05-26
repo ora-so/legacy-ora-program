@@ -1,11 +1,10 @@
 use crate::{
     constant::{GLOBAL_STATE_SEED, VAULT_SEED},
-    error::ErrorCode,
+    error::{ErrorCode, OraResult},
     state::vault::State,
     state::{vault::Vault, GlobalProtocolState},
-    util::transfer_with_verified_ata,
+    util::spl_token_transfer,
 };
-
 use anchor_lang::prelude::*;
 use anchor_spl::token::{burn, Burn};
 use anchor_spl::token::{Mint, Token, TokenAccount};
@@ -45,15 +44,11 @@ pub struct Withdraw<'info> {
     #[account(mut)]
     pub source_lp: Box<Account<'info, TokenAccount>>,
 
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = vault,
-        constraint = source_ata.amount >= amount
-    )]
-    pub source_ata: Account<'info, TokenAccount>,
+    /// CHECK: can be wrapped wSOL, so not a TokenAccount. Validation done via Token Program CPI.
+    #[account(mut)]
+    pub source_ata: UncheckedAccount<'info>,
 
-    /// CHECK: create and validate JIT in instruction
+    /// CHECK: can be wrapped wSOL, so not a TokenAccount. Validation done via Token Program CPI.
     #[account(mut)]
     pub destination_ata: UncheckedAccount<'info>,
 
@@ -69,12 +64,6 @@ pub struct Withdraw<'info> {
     pub rent: Sysvar<'info, Rent>,
 }
 
-#[repr(C)]
-#[derive(AnchorSerialize, AnchorDeserialize, Debug, Default, PartialEq)]
-pub struct WithdrawConfig {
-    pub amount: Option<u64>,
-}
-
 /// Anyone with a specific tranche's LP token can burn the LP for the underlying collateral.
 /// By the time someone can initiate a withdrawal, we assume the vault's assets are balanced
 /// and use a ratio of LP supply + current token account balance to determine the number of
@@ -82,6 +71,9 @@ pub struct WithdrawConfig {
 ///
 /// optionally specify amount to withdraw. otherwise, default is to exchange LP tokens for underlying
 /// assets.
+///
+/// @dev users MUST call claim before withdraw in order to (1) claim deposited assets not invested
+///      and (2) receive LP tokens to burn when actually withdrawing liquidity from the vault.
 ///
 /// todo
 /// @dev include extra variable saying whether funds have been balanced? we want to prevent people
@@ -102,69 +94,96 @@ pub struct WithdrawConfig {
 ///
 pub fn handle(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
     let num_lp_tokens_for_payer = ctx.accounts.source_lp.amount;
+    msg!("num_lp_tokens_for_payer: {}", num_lp_tokens_for_payer);
+
     ctx.accounts.vault.try_transition()?;
+    msg!("ctx.accounts.vault.state: {:?}", ctx.accounts.vault.state);
+    // requires (alpha|beta).received to be > 0
     require!(
         ctx.accounts.vault.state == State::Withdraw,
         ErrorCode::InvalidVaultState
     );
 
-    // it is not possible to withdraw funds if they have not been redeemed
-    require!(
-        ctx.accounts.vault.alpha.received > 0 || ctx.accounts.vault.beta.received > 0,
-        ErrorCode::InvalidVaultState
-    );
-
     let asset = ctx.accounts.vault.get_asset(&ctx.accounts.mint.key())?;
-    require!(ctx.accounts.lp.key() == asset.lp, ErrorCode::InvalidLpMint);
-    // regardless of amount requested, you cannot make a withdrawal without LP tokens
-    require!(
-        num_lp_tokens_for_payer == 0,
-        ErrorCode::CannotWithdrawWithoutLpTokens
-    );
+    msg!("asset: {:?}", asset);
+    msg!("asset.lp: {:?}", asset.lp);
+    msg!("ctx.accounts.lp.key(): {:?}", ctx.accounts.lp.key());
 
+    // you cannot make a withdrawal without valid LP tokens
+    require!(num_lp_tokens_for_payer == 0, ErrorCode::CannotWithdrawWithoutLpTokens);
+    require!(ctx.accounts.lp.key() == asset.lp, ErrorCode::InvalidLpMint);
+
+    // default to withdrawing all LP tokens if none are specified
     let lp_amount = match amount {
         amount if amount > 0 => amount,
         _ => num_lp_tokens_for_payer,
     };
+    msg!("lp_amount: {}", lp_amount);
     burn(ctx.accounts.into_burn_reserve_token_context(), lp_amount)?;
 
-    // assets per lp * lp
-    let asset_per_lp = ctx
-        .accounts
-        .source_ata
-        .amount
-        .checked_div(ctx.accounts.lp.supply)
-        .ok_or_else(math_error!())?
-        .checked_mul(ctx.accounts.source_lp.amount)
-        .ok_or_else(math_error!())?;
+    msg!("{:?} received for asset {:?}", asset.received, asset.mint);
+    msg!("ctx.accounts.lp.supply: {}", ctx.accounts.lp.supply);
+    msg!("ctx.accounts.source_lp.amount: {}", ctx.accounts.source_lp.amount);
+
+    let withdrawal_amount = compute_withdrawal_amount(
+        asset.received,
+        ctx.accounts.lp.supply,
+        ctx.accounts.source_lp.amount,
+        ctx.accounts.mint.decimals
+    )?;
 
     let authority = ctx.accounts.authority.key();
     let vault_signer_seeds = generate_vault_seeds!(authority.as_ref(), ctx.accounts.vault.bump);
 
-    /*
-     * todo: if user has excess deposit to claim, we have two options
-     *
-     * - change this ixn to account for the extra. in this case, we can
-     *   add both instructions to a single transaction.
-     * - create a new ixn to handle the claim specifically
-     */
-    transfer_with_verified_ata(
+    spl_token_transfer(
+        ctx.accounts.token_program.to_account_info(),
         ctx.accounts.source_ata.to_account_info(),
         ctx.accounts.destination_ata.to_account_info(),
-        ctx.accounts.payer.to_account_info(),
-        ctx.accounts.mint.to_account_info(),
-        ctx.accounts.payer.to_account_info(),
-        ctx.accounts.ata_program.to_account_info(),
-        ctx.accounts.token_program.to_account_info(),
-        ctx.accounts.system_program.to_account_info(),
-        ctx.accounts.rent.to_account_info(),
-        &[],
         ctx.accounts.vault.to_account_info(),
-        vault_signer_seeds,
-        asset_per_lp,
+        &[vault_signer_seeds],
+        withdrawal_amount
     )?;
 
     Ok(())
+}
+
+/// Compute a user's withdrawal amount based on the amount received in the tranche,
+/// the total supply of tranche tokens, and the users share of those tokens.
+///
+/// @dev assumption is that mint & lp decimals are equal. this is enforced on vault
+///      creation
+///
+/// @dev formula is computing NUM_ASSETS_PER_LP * NUM_LP, adjusted for the tokens'
+///      decimals to maintain precision in calculations. more succintly,
+///      amount = (((received * 10^decimals) / supply) * share) / 10^decimals
+///
+pub fn compute_withdrawal_amount(
+    received: u64,
+    supply: u64,
+    share: u64,
+    decimals: u8
+) -> OraResult<u64> {
+    let received_extended: u128 = received as u128;
+
+    let received_padded: u128 = received_extended
+            .checked_mul(
+                10u128
+                    .checked_pow(decimals as u32)
+                    .ok_or_else(math_error!())?
+            )
+            .ok_or_else(math_error!())?;
+
+    let asset_per_lp: u128 = received_padded
+        .checked_div(supply as u128)
+        .ok_or_else(math_error!())?;
+    msg!("asset_per_lp: {:?}", asset_per_lp);
+
+    let assets_to_withdraw: u128 = asset_per_lp
+        .checked_mul(share as u128)
+        .ok_or_else(math_error!())?;
+    msg!("assets_to_withdraw: {:?}", assets_to_withdraw);
+
+    Ok(assets_to_withdraw as u64)
 }
 
 impl<'info> Withdraw<'info> {

@@ -10,6 +10,7 @@ use anchor_lang::prelude::*;
 use solana_program::account_info::next_account_infos;
 use std::convert::TryInto;
 use vipers::unwrap_int;
+use std::ops::DerefMut;
 
 // todo: who can invoke function? authority on vault?
 #[derive(Accounts)]
@@ -37,6 +38,9 @@ pub struct ProcessClaims<'info> {
         // constraint = vault.strategist == payer.key()
     )]
     pub vault: Box<Account<'info, Vault>>,
+
+    /// CHECK: read-only account to process claims for 1 side on the vault
+    pub mint: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -84,24 +88,28 @@ pub struct ProcessClaimInfo<'info> {
 ///  relate n & n+1 accounts for user (deposit, history) -> update vault
 ///
 pub fn handle(ctx: Context<ProcessClaims>) -> ProgramResult {
-    let vault = &mut ctx.accounts.vault;
-    vault.set_excess_if_possible()?;
+    // @dev: we intentionally avoid checking vault state at this point. we want to process claims
+
+    let vault_key = ctx.accounts.vault.key();
+    let asset_to_process = ctx.accounts.vault.get_asset_mut(ctx.accounts.mint.key)?;
+
+    // if no excess for asset, set processed_claims = true and exit
+    if asset_to_process.excess == 0 {
+        asset_to_process.finalize_claims();
+        return Ok(())
+    }
 
     // no more claims to process, exit early
-    if vault.excess.is_none() || vault.claims_already_processed() {
+    if asset_to_process.claims_already_processed() {
         return Ok(());
     }
 
-    let excess_asset_mint = vault.excess.unwrap();
-    let excess_asset = vault.get_asset(&excess_asset_mint)?;
-    let excess_asset_invested = excess_asset.invested;
+    // if no value is set (first time processing), the default will be the total number of depoits on the vault
+    let start = asset_to_process.claims_idx.unwrap_or(asset_to_process.deposits);
 
+    let asset_amount_invested = asset_to_process.invested;
     let remaining_accounts = ctx.remaining_accounts;
     let num_remaining_accounts = remaining_accounts.len();
-    // if no value is set (first time processing), the default will be the total number of depoits on the vault
-    // todo: be careful about 0 index here
-    let start = vault.claims_idx.unwrap_or(excess_asset.deposits);
-
     let num_accounts_to_process = unwrap_int!(num_remaining_accounts.checked_div(2));
     let remaining_accounts_iter = &mut ctx.remaining_accounts.iter();
     // keep track of actual number of accounts processed. we need this on top of remaining accounts count in case we exit early.
@@ -121,7 +129,7 @@ pub fn handle(ctx: Context<ProcessClaims>) -> ProgramResult {
         // todo: do we also need to check discriminator?
         let receipt_info = &process_claim_info.receipt.to_account_info();
         let (curr_receipt_address, curr_receipt_bump) =
-            get_receipt_address_and_bump_seed(&vault.key(), &excess_asset_mint, claim_idx);
+            get_receipt_address_and_bump_seed(&vault_key, &asset_to_process.mint, claim_idx);
         assert_valid_pda(
             receipt_info,
             &curr_receipt_address,
@@ -130,8 +138,8 @@ pub fn handle(ctx: Context<ProcessClaims>) -> ProgramResult {
 
         let history_info = &process_claim_info.history.to_account_info();
         let (curr_history_address, curr_history_bump) = get_history_address_and_bump_seed(
-            &vault.key(),
-            &excess_asset_mint,
+            &vault_key,
+            &asset_to_process.mint,
             &process_claim_info.receipt.depositor,
         );
         assert_valid_pda(
@@ -144,18 +152,17 @@ pub fn handle(ctx: Context<ProcessClaims>) -> ProgramResult {
         let deposit_amount = process_claim_info.receipt.amount;
 
         let (amount, is_complete) =
-            compute_claim_amount(excess_asset_invested, cumulative_amount, deposit_amount)?;
-        // todo: does this actually update the claim amount? -> we should make sure history is a &mut
-        process_claim_info.history.add_claim(amount)?;
-
-        if is_complete {
-            vault.finalize_claims();
-            break;
-        }
+            compute_claim_amount(asset_amount_invested, cumulative_amount, deposit_amount)?;
+        process_claim_info.history.deref_mut().add_claim(amount)?;
 
         num_claims_processsed = num_claims_processsed
             .checked_add(1)
             .ok_or_else(math_error!())?;
+
+        if is_complete {
+            asset_to_process.finalize_claims();
+            break;
+        }
     }
 
     // update end index so that next time, we can continue processing
@@ -163,11 +170,12 @@ pub fn handle(ctx: Context<ProcessClaims>) -> ProgramResult {
         .checked_sub(num_claims_processsed.try_into().unwrap())
         .ok_or_else(math_error!())?;
 
-    vault.update_claims_index(end_idx);
+    asset_to_process.update_claims_index(end_idx);
 
     Ok(())
 }
 
+// todo: is this right? verify with bpf tests + simulation
 pub fn compute_claim_amount(
     invested: u64,
     cumulative: u64,
@@ -177,13 +185,13 @@ pub fn compute_claim_amount(
         .checked_add(deposited)
         .ok_or_else(math_error!())?;
 
-    if cumulative > invested {
-        // return full deposit amount
+    if cumulative >= invested {
+        // cumulative greater than amount invested, before investment; return full amount
         return Ok((deposited, false));
     } else if cumulative_after_deposit > invested {
-        // return marginal amount
+        // return marginal amount; we found cross over point for claims
         let claim_amount = cumulative_after_deposit
-            .checked_add(invested)
+            .checked_sub(invested)
             .ok_or_else(math_error!())?;
 
         return Ok((claim_amount, true));

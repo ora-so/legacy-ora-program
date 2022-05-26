@@ -119,7 +119,7 @@ export interface IVault {
   startAt: u64;
   investAt: u64;
   redeemAt: u64;
-
+  farmVault?: PublicKey;
   // related to claims
   excess?: PublicKey;
   claimsProcessed: boolean;

@@ -122,7 +122,6 @@ pub fn handle(
     let mint_key = &ctx.accounts.mint.key();
 
     ctx.accounts.vault.try_transition()?;
-    msg!("state: {:?}", ctx.accounts.vault.state);
     require!(
         ctx.accounts.vault.state == State::Deposit,
         ErrorCode::InvalidVaultState

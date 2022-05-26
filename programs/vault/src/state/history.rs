@@ -25,6 +25,8 @@ pub struct History {
     /// amount user has right to claim due to an excess deposit. the asset
     /// to be claimed is stored on the vault itself.
     pub claim: u64,
+    /// user has right to claim LP tokens representing their position in the tranche
+    pub can_claim_tranche_lp: bool,
 }
 
 impl History {
@@ -35,6 +37,7 @@ impl History {
             self.deposits = 0;
             self.cumulative = 0;
             self.claim = 0;
+            self.can_claim_tranche_lp = true;
         }
     }
 
@@ -66,5 +69,9 @@ impl History {
 
     pub fn reset_claim(&mut self) {
         self.claim = 0;
+    }
+
+    pub fn claim_tranche_lp(&mut self) {
+        self.can_claim_tranche_lp = false;
     }
 }

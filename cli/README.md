@@ -96,7 +96,7 @@ ts-node ./src/cli.ts derive_global_protocol_state \
 ts-node ./src/cli.ts show_global_protocol_state \
  --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --pubkey E1SaLmt31ycxSDGyEXAaer1F49qkHh4n8QF8z9zUQKfG
+ --pubkey BA84mbakG8SCUvc6kZZZmsyb1JDPSycvFeTnFTPNDSzq
 
 ==================================================
 VAULT FLOW
@@ -109,7 +109,9 @@ ts-node ./src/cli.ts init_vault --env devnet \
  --strategist /Users/jacobshiohira/.config/solana/devnet.json \
  --strategy <pubkey> \
  --alpha <pubkey> \
+ --userCapA <pubkey> \
  --beta <pubkey> \
+ --userCapB <pubkey> \
  --fixedRate <number> \
  --startAt <number> \
  --depositPeriod <number> \
@@ -156,7 +158,7 @@ ts-node ./src/cli.ts find_orca_pools \
  --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
  --tickerA USDC \
- --tickerB SOL
+ --tickerB ORCA
 
 ts-node ./src/cli.ts init_orca_strategy \
  --env devnet \
@@ -169,7 +171,7 @@ ts-node ./src/cli.ts init_orca_strategy \
 ts-node ./src/cli.ts show_orca_strategy \
  --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --addr 6NKgFQQ24zMaC7yP1udds3iVdAGSjfVTpQSYcagiANM5
+ --addr 7GKJmae1Gkw2AiK4NyaTxm4gGFWoXYm3kUEZdJuJR11y
 
 ts-node ./src/cli.ts initialize_user_farm --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
@@ -233,3 +235,146 @@ ts-node ./src/cli.ts mint_to --env devnet \
 ts-node ./src/cli.ts mint --env <env> \
  --keypair <path-to-keypair> \
  --decimals <number>
+
+<!--
+- gps: BA84mbakG8SCUvc6kZZZmsyb1JDPSycvFeTnFTPNDSzq
+- orca strategy: 7GKJmae1Gkw2AiK4NyaTxm4gGFWoXYm3kUEZdJuJR11y
+- vault: C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV
+
+- vault?
+- do stuff on vault
+- right now, i think we have to invest the funds to be able to withdraw (and get LP). what happens if that doesn't happen?
+- safe assumption to think we'll always invest?
+-->
+
+ts-node ./src/cli.ts ts
+
+ts-node ./src/cli.ts init_vault --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --strategist J49LVNp7kwbeuZfkojcn6hpV1HSwXbg76ur3kh1bPXPM \
+ --strategy 7GKJmae1Gkw2AiK4NyaTxm4gGFWoXYm3kUEZdJuJR11y \
+ --alpha orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
+ --userCapA 1000000 \
+ --beta So11111111111111111111111111111111111111112 \
+ --userCapB 10000000000 \
+ --fixedRate 3000 \
+ --startAt 1653490191471 \
+ --depositPeriod 3600 \
+ --livePeriod 7200 \
+ --execute true
+
+ts-node ./src/cli.ts show_vault --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV
+
+ts-node ./src/cli.ts deposit --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --mint So11111111111111111111111111111111111111112 \
+ --amount 0.000000001 \
+ --execute true
+
+ts-node ./src/cli.ts deposit --env devnet \
+ --keypair ../mintKeys/depositor2.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --mint So11111111111111111111111111111111111111112 \
+ --amount 1 \
+ --execute true
+
+ts-node ./src/cli.ts deposit --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --mint orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
+ --amount 0.01 \
+ --execute true
+
+ts-node ./src/cli.ts show_receipts --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --mint orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
+ --execute true
+
+<!-- todo: test B/A for A/B -->
+
+ts-node ./src/cli.ts invest_orca --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --orcaSwapProgram 3xQ8SWv2GaFXXpHZNqkXsdxq5DZciHBz6ZFoPPfbFd7U \
+ --pair ORCA_SOL \
+ --alpha 0.01 \
+ --beta 1 \
+ --execute true
+
+ts-node ./src/cli.ts redeem_orca --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --orcaSwapProgram 3xQ8SWv2GaFXXpHZNqkXsdxq5DZciHBz6ZFoPPfbFd7U \
+ --pair ORCA_SOL \
+ --execute false
+
+ts-node ./src/cli.ts process_claims --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --execute false
+
+ts-node ./src/cli.ts claim --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --mint So11111111111111111111111111111111111111112 \
+ --execute true
+
+ts-node ./src/cli.ts claim --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --mint orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
+ --execute true
+
+ts-node ./src/cli.ts show_depositors --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --mint So11111111111111111111111111111111111111112 \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV
+
+ts-node ./src/cli.ts show_deposit_history --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --mint orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
+ --depositor J49LVNp7kwbeuZfkojcn6hpV1HSwXbg76ur3kh1bPXPM
+
+ts-node ./src/cli.ts show_depositors --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --mint So11111111111111111111111111111111111111112
+
+https://solscan.io/tx/2kz17Me2QUzUWNUZkcoNdC6xk4iJpLCARBHhiDxEMGR8Mk3a2KEDpU2C26MpkGySf46uey2noFg4JqMwt4macx5Y?cluster=devnet
+
+ts-node ./src/cli.ts withdraw --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --mint So11111111111111111111111111111111111111112 \
+ --execute true
+
+ts-node ./src/cli.ts withdraw --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --mint orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
+ --execute true
+
+ts-node ./src/cli.ts claim --env devnet \
+ --keypair /Users/jacobshiohira/sooshisan/ora/mintKeys/depositor1.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --mint So11111111111111111111111111111111111111112 \
+ --execute true
+
+ts-node ./src/cli.ts withdraw --env devnet \
+ --keypair /Users/jacobshiohira/sooshisan/ora/mintKeys/depositor1.json \
+ --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --mint So11111111111111111111111111111111111111112 \
+ --execute true
+
+BFm6WfjAEuokVoGZVdcSRw7vQZ1HTPoaj62pQ5mbAc4G
+
+ts-node ./src/cli.ts token_supply --env mainnet-beta \
+ --mint AFbX8oGjGpmVFywbVouvhQSRmiW2aR1mohfahi4Y2AdB
+
+ts-node ./src/cli.ts token_supply --env mainnet-beta \
+ --mint DUSTawucrTsGU8hcqRdHDCbuYhCPADMLM2VcCb8VnFnQ

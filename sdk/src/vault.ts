@@ -1,6 +1,10 @@
 import * as anchor from "@project-serum/anchor";
 import { Program, Provider, Idl, Wallet, BN } from "@project-serum/anchor";
-import { StableSwap, SWAP_PROGRAM_ID } from "@saberhq/stableswap-sdk";
+import {
+  StableSwap,
+  SWAP_PROGRAM_ID,
+  ZERO_FEES,
+} from "@saberhq/stableswap-sdk";
 import {
   AccountLayout,
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -57,6 +61,7 @@ import {
   getSignersFromPayer,
   flattenValidInstructions,
   toIVault,
+  toU64,
 } from "./common/util";
 import { Vault } from "./types/vault";
 import { getOrCreateATA } from "./common";
@@ -81,7 +86,8 @@ export const fixedRateToDecimal = (n: number) => n / 10_000;
 
 export const descaleToOrcaU64 = (amount: number, token: OrcaPoolToken) => {
   const scale = token.scale;
-  return new OrcaU64(new u64(amount / 10 ** scale), scale);
+  // we want decimal?
+  return new OrcaU64(new u64(amount / 10 ** (scale - 2)), scale);
 };
 
 export const scaleToOrcaU64 = (amount: number, token: OrcaPoolToken) => {
@@ -104,9 +110,12 @@ export interface SwapConfig {
 export const computeSwapForVault = async (
   pool: OrcaPool,
   vault: IVault,
-  orcaInvestment: OrcaInvestment
+  orcaInvestment: OrcaInvestment,
+  iterationDeltaBps: number = 1 // bips
 ): Promise<SwapConfig | null> => {
   const trancheTokens = getTrancheAsOrcaTokens(vault, pool);
+  console.log("alpha tranche scale: ", trancheTokens.alpha.scale);
+  console.log("beta tranche scale: ", trancheTokens.beta.scale);
 
   const redeemableAlpha =
     orcaInvestment.a.token.mint.toBase58() === vault.alpha.mint.toBase58()
@@ -128,64 +137,107 @@ export const computeSwapForVault = async (
   }
 
   const fixedRateDecimal = fixedRateToDecimal(vault.fixedRate);
+  console.log("vault.fixedRate: ", vault.fixedRate);
+  console.log("fixedRateDecimal: ", fixedRateDecimal);
+
   // form => amount * 10 ** decimals
   const requiredAlpha =
     vault.alpha.invested.toNumber() * (1 + fixedRateDecimal);
+  console.log("requiredAlpha: ", requiredAlpha);
 
   if (_redeemableAlpha < requiredAlpha) {
+    console.log("_redeemableAlpha < requiredAlpha");
+
     // swap beta for alpha; we need to make alpha tranche whole since it's senior
     // we can use swapAmount input/output ratio to back into approximate input for output
     // including slippage and fees. aka how much of beta we need to convert to alpha.
     // otherwise, we could reverse engineer the getQuote function, but this might be just
     // as effective?
     const remainingA = requiredAlpha - _redeemableAlpha;
-    const scaledRemainingA = descaleToOrcaU64(remainingA, trancheTokens.alpha);
+    const remainingA_OrcaU64 = toOrcaU64(remainingA, trancheTokens.alpha);
 
-    const swapRatio = await getSwapRatio(
+    // get a rough estimate on the swap conversion between A & B, use that to close in on B -> reqired(A)
+    let seedSwap = await getAmountsForSwap(
       pool,
       trancheTokens.alpha,
-      scaledRemainingA
+      remainingA_OrcaU64
+    );
+    // initial swap lossy due to fee calculations; initial buffer will help us hone in on target value faster.
+    let input = seedSwap.output.toNumber() * 1.005;
+
+    // we require at least remainingA to make alpha tranche whole; look in range of [requiredFloor, acceptableUpper)
+    const requiredFloor = remainingA;
+    const acceptableUpper = remainingA * 1.01;
+    console.log(
+      "requiredFloor: ",
+      requiredFloor,
+      ", acceptableUpper: ",
+      acceptableUpper
     );
 
-    // either some subset of beta, or all of it if there's not enough
-    const amountInputBeta = Math.min(swapRatio * remainingA, _redeemableBeta);
+    // todo: add type with defaults?
+    let swapEstimate: any;
+    let foundValidSwap = false;
+    for (let i = 0; i < 1000; i++) {
+      console.log("input: ", input);
+      swapEstimate = await getAmountsForSwap(
+        pool,
+        trancheTokens.beta,
+        scaleToOrcaU64(input, trancheTokens.beta)
+      );
+      console.log("swapEstimate: ", swapEstimate);
 
-    const swapEstimates = await getAmountsForSwap(
-      pool,
-      trancheTokens.beta,
-      scaleToOrcaU64(amountInputBeta, trancheTokens.beta)
-    );
+      const _output =
+        swapEstimate.output.toNumber() * 10 ** trancheTokens.alpha.scale;
+      if (_output < requiredFloor) {
+        console.log("output too low");
+        input = input * (1 + iterationDeltaBps / 10_000);
+      } else if (_output > acceptableUpper) {
+        console.log("output too high");
+        input = input * (1 - iterationDeltaBps / 10_000);
+      } else {
+        console.log(`found acceptable output ${_output} in ${i} iterations`);
+        foundValidSwap = true;
+        break;
+      }
+    }
+
+    if (!foundValidSwap) throw new Error("never found valid swap");
 
     return {
       maxIn: U64Utils.toTokenU64(
-        swapEstimates.input,
+        swapEstimate.input,
         trancheTokens.beta,
         "inputAmount"
       ),
       maxOut: U64Utils.toTokenU64(
-        swapEstimates.output,
+        swapEstimate.output,
         trancheTokens.alpha,
         "outputAmount"
       ),
       alphaToBeta: false,
     };
   } else if (_redeemableAlpha > requiredAlpha) {
+    console.log("_redeemableAlpha > requiredAlpha");
     // swap alpha for beta
     const residualA = _redeemableAlpha - requiredAlpha;
-    const swapEstimates = await getAmountsForSwap(
+    console.log("residualA: ", residualA);
+
+    const swapEstimate = await getAmountsForSwap(
       pool,
       trancheTokens.alpha,
       scaleToOrcaU64(residualA, trancheTokens.alpha)
     );
+    console.log("swapEstimate: ", swapEstimate);
 
     return {
       maxIn: U64Utils.toTokenU64(
-        swapEstimates.input,
+        swapEstimate.input,
         trancheTokens.alpha,
         "inputAmount"
       ),
       maxOut: U64Utils.toTokenU64(
-        swapEstimates.output,
+        swapEstimate.output,
         trancheTokens.beta,
         "outputAmount"
       ),
@@ -203,7 +255,10 @@ export const getSwapRatio = async (
   inputAmount: OrcaU64
 ): Promise<number> => {
   const amountForSwap = await getAmountsForSwap(pool, inputToken, inputAmount);
+  console.log("input: ", amountForSwap.input.toNumber());
+  console.log("output: ", amountForSwap.output.toNumber());
   return amountForSwap.input.toNumber() / amountForSwap.output.toNumber();
+  // return amountForSwap.output.toNumber() / amountForSwap.input.toNumber();
 };
 
 export const getAmountsForSwap = async (
@@ -211,6 +266,9 @@ export const getAmountsForSwap = async (
   inputToken: OrcaPoolToken,
   inputAmount: OrcaU64
 ) => {
+  console.log("inputToken: ", inputToken.mint.toBase58());
+  console.log("inputAmount: ", inputAmount.toNumber());
+
   const quote = await pool.getQuote(inputToken, inputAmount);
   const outputAmount = quote.getMinOutputAmount();
 
@@ -1342,11 +1400,16 @@ export class VaultClient extends AccountUtils {
           ataProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           rent: SYSVAR_RENT_PUBKEY,
         },
-        preInstructions: flattenValidInstructions([
-          destinationAssetAta,
-          destinationLpTokenAccount,
-        ]),
-        signers: signerInfo.signers,
+        preInstructions: [
+          ...destinationAssetAta.instructions,
+          ...destinationLpTokenAccount.instructions,
+        ],
+        signers: [
+          ...signerInfo.signers,
+          ...destinationAssetAta.signers,
+          ...destinationLpTokenAccount.signers,
+        ],
+        postInstructions: destinationAssetAta.cleanup,
       });
     }
     return "nan";
@@ -1589,11 +1652,11 @@ export class VaultClient extends AccountUtils {
 
   _toAccountMeta = (receipt: PublicKey, history: PublicKey) => {
     return [receipt, history].map(
-      (acc, idx): AccountMeta => ({
+      (acc, _): AccountMeta => ({
         pubkey: acc,
         isSigner: false,
         // history (idx 1) should be writable
-        isWritable: idx % 2 === 0 ? false : true,
+        isWritable: true, //  idx % 2 !== 0 ? false :
       })
     );
   };
@@ -1609,6 +1672,8 @@ export class VaultClient extends AccountUtils {
       );
 
     const excessMint = vault.excess;
+    console.log("excessMint: ", excessMint.toBase58());
+
     const remainingAccounts: AccountMeta[] = [];
     if (vault.claimsProcessed) return remainingAccounts;
 
@@ -1617,7 +1682,14 @@ export class VaultClient extends AccountUtils {
       vault.claimsIdx ? vault.claimsIdx : _asset.deposits
     );
 
-    for (let i = 0; i < count; i++) {
+    console.log("_claimsIndex: ", _claimsIndex.toNumber());
+
+    for (let i = 0; i <= count; i++) {
+      // we reached the end early
+      if (_claimsIndex.eq(ZERO_U64)) {
+        break;
+      }
+
       const { addr: receipt } = await this.generateReceiptAddress(
         vaultAddress,
         excessMint,
@@ -1625,18 +1697,22 @@ export class VaultClient extends AccountUtils {
       );
 
       const _receipt = await this.fetchReceipt(receipt);
+      console.log("_receipt: ", _receipt);
 
       const { addr: history } = await this.generateHistoryAddress(
         vaultAddress,
         excessMint,
         _receipt.depositor
       );
+      console.log("history: ", history);
 
       remainingAccounts.push(...this._toAccountMeta(receipt, history));
 
       // decrement claims index
       _claimsIndex = _claimsIndex.sub(ONE_U64);
     }
+
+    console.log("remainingAccounts: ", remainingAccounts.length);
 
     return remainingAccounts;
   };
@@ -1816,8 +1892,36 @@ export class VaultClient extends AccountUtils {
       : orcaInvestment.b.amountOrcaU64;
 
     console.log("==========================================");
+    console.log(
+      "orcaInvestment.a.mint: ",
+      orcaInvestment.a.token.mint.toBase58()
+    );
+    console.log(
+      "orcaInvestment.a.source: ",
+      orcaInvestment.a.source.toBase58()
+    );
+    console.log("orcaInvestment.a.dest: ", orcaInvestment.a.dest.toBase58());
     console.log("maxAmountA: ", maxAmountA.toNumber());
+
+    console.log(
+      "orcaInvestment.b.mint: ",
+      orcaInvestment.b.token.mint.toBase58()
+    );
+    console.log(
+      "orcaInvestment.b.source: ",
+      orcaInvestment.b.source.toBase58()
+    );
+    console.log("orcaInvestment.b.dest: ", orcaInvestment.b.dest.toBase58());
     console.log("maxAmountB: ", maxAmountB.toNumber());
+
+    console.log(
+      "orcaInvestment.poolToken.source: ",
+      orcaInvestment.poolToken.source.toBase58()
+    );
+    console.log(
+      "orcaInvestment.poolToken.mint: ",
+      orcaInvestment.poolToken.mint.toBase58()
+    );
     console.log(
       "orcaInvestment.poolToken.amount: ",
       orcaInvestment.poolToken.amount.toNumber()
@@ -1837,28 +1941,30 @@ export class VaultClient extends AccountUtils {
 
     // =====================================================
 
-    const swapConfig = await computeSwapForVault(
-      pool,
-      toIVault(vault),
-      orcaInvestment
-    );
+    // let swapConfig = await computeSwapForVault(
+    //   pool,
+    //   toIVault(_vault),
+    //   orcaInvestment
+    // );
 
-    if (swapConfig) {
-      console.log("swapConfig maxIn: ", swapConfig.maxIn.toNumber());
-      console.log("swapConfig maxOut: ", swapConfig.maxOut.toNumber());
-      console.log("swapConfig alphaToBeta: ", swapConfig.alphaToBeta);
-    } else {
-      console.log("swapConfig is null");
-    }
+    // if (swapConfig) {
+    //   console.log("swapConfig maxIn: ", swapConfig.maxIn.toNumber());
+    //   console.log("swapConfig maxOut: ", swapConfig.maxOut.toNumber());
+    //   console.log("swapConfig alphaToBeta: ", swapConfig.alphaToBeta);
+
+    //   console.log("updating in to be 0");
+    //   swapConfig.maxIn = ZERO_U64;
+    // } else {
+    //   console.log("swapConfig is null");
+    // }
 
     // =====================================================
 
     if (executeTransaction) {
       return this.vaultProgram.rpc.redeemOrca(
-        orcaInvestment.poolToken.amount,
-        amountTokenA,
-        amountTokenB,
-        swapConfig as any, // todo: does this work?
+        amountTokenA as any,
+        amountTokenB as any,
+        null, // swapConfig as any, // todo: does this work?
         {
           accounts: {
             payer: signerInfo.payer, // must be strategist
