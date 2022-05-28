@@ -1940,6 +1940,9 @@ export type Vault = {
           },
           {
             "name": "AlreadyClaimedLpTokens"
+          },
+          {
+            "name": "UnableToWriteToRemainingAccount"
           }
         ]
       }
@@ -3926,6 +3929,9 @@ export const IDL: Vault = {
           },
           {
             "name": "AlreadyClaimedLpTokens"
+          },
+          {
+            "name": "UnableToWriteToRemainingAccount"
           }
         ]
       }
