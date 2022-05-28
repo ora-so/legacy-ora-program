@@ -160,6 +160,9 @@ ts-node ./src/cli.ts find_orca_pools \
  --tickerA USDC \
  --tickerB ORCA
 
+<!-- gps: 3PbRNrNoSviVqwcYJaVCpkK5RwyrswDFsVC8X9gNQV68 -->
+<!-- orca: G7yWxUweRM1Kz5AxZHspsz8mui4K3un9parQoTa7DkF1 -->
+
 ts-node ./src/cli.ts init_orca_strategy \
  --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
@@ -171,14 +174,15 @@ ts-node ./src/cli.ts init_orca_strategy \
 ts-node ./src/cli.ts show_orca_strategy \
  --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --addr 7GKJmae1Gkw2AiK4NyaTxm4gGFWoXYm3kUEZdJuJR11y
+ --addr G7yWxUweRM1Kz5AxZHspsz8mui4K3un9parQoTa7DkF1
 
 ts-node ./src/cli.ts initialize_user_farm --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault <pubkey> \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
  --orcaFarmProgram 82yxjeMsvaURa4MbZZ7WZZHfobirZYkH1zF8fmeGtyaQ \
+ --farmType aquafarm \
  --pair ORCA_SOL \
- --execute false
+ --execute true
 
 ts-node ./src/cli.ts invest_orca --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
@@ -200,7 +204,7 @@ ts-node ./src/cli.ts invest_orca --env devnet \
 
 ts-node ./src/cli.ts convert_lp_tokens --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault <pubkey> \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
  --orcaFarmProgram 82yxjeMsvaURa4MbZZ7WZZHfobirZYkH1zF8fmeGtyaQ \
  --farmType aquafarm \
  --pair ORCA_SOL \
@@ -208,19 +212,19 @@ ts-node ./src/cli.ts convert_lp_tokens --env devnet \
 
 ts-node ./src/cli.ts harvest --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault <pubkey> \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
  --orcaFarmProgram 82yxjeMsvaURa4MbZZ7WZZHfobirZYkH1zF8fmeGtyaQ \
  --farmType aquafarm \
  --pair ORCA_SOL \
- --execute false
+ --execute true
 
 ts-node ./src/cli.ts revert_lp_tokens --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault <pubkey> \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
  --orcaFarmProgram 82yxjeMsvaURa4MbZZ7WZZHfobirZYkH1zF8fmeGtyaQ \
  --farmType aquafarm \
  --pair ORCA_SOL \
- --execute false
+ --execute true
 
 ==================================================
 TOKEN HELPER FLOW
@@ -249,125 +253,161 @@ ts-node ./src/cli.ts mint --env <env> \
 
 ts-node ./src/cli.ts ts
 
+<!-- gps: 3PbRNrNoSviVqwcYJaVCpkK5RwyrswDFsVC8X9gNQV68 -->
+<!-- orca: G7yWxUweRM1Kz5AxZHspsz8mui4K3un9parQoTa7DkF1 -->
+<!-- vault: 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN -->
+
 ts-node ./src/cli.ts init_vault --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
  --strategist J49LVNp7kwbeuZfkojcn6hpV1HSwXbg76ur3kh1bPXPM \
- --strategy 7GKJmae1Gkw2AiK4NyaTxm4gGFWoXYm3kUEZdJuJR11y \
+ --strategy G7yWxUweRM1Kz5AxZHspsz8mui4K3un9parQoTa7DkF1 \
  --alpha orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
  --userCapA 1000000 \
+ --assetCapA 2000000 \
  --beta So11111111111111111111111111111111111111112 \
- --userCapB 10000000000 \
+ --userCapB 1500000000 \
+ --assetCapB 2000000000 \
  --fixedRate 3000 \
- --startAt 1653490191471 \
+ --startAt 1653610072857 \
  --depositPeriod 3600 \
  --livePeriod 7200 \
  --execute true
 
 ts-node ./src/cli.ts show_vault --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN
 
 ts-node ./src/cli.ts deposit --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
  --mint So11111111111111111111111111111111111111112 \
- --amount 0.000000001 \
+ --amount 0.5 \
  --execute true
 
 ts-node ./src/cli.ts deposit --env devnet \
  --keypair ../mintKeys/depositor2.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
+ --mint So11111111111111111111111111111111111111112 \
+ --amount 1.2 \
+ --execute true
+
+ts-node ./src/cli.ts deposit --env devnet \
+ --keypair ../mintKeys/depositor1.json \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
  --mint So11111111111111111111111111111111111111112 \
  --amount 1 \
  --execute true
 
 ts-node ./src/cli.ts deposit --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
- --mint orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
- --amount 0.01 \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
+ --mint So11111111111111111111111111111111111111112 \
+ --amount 0.69 \
  --execute true
+
+ts-node ./src/cli.ts show_depositors --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
+ --mint So11111111111111111111111111111111111111112
 
 ts-node ./src/cli.ts show_receipts --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
- --mint orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
+ --mint So11111111111111111111111111111111111111112 \
  --execute true
+
+ts-node ./src/cli.ts show_deposit_history --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
+ --depositor J49LVNp7kwbeuZfkojcn6hpV1HSwXbg76ur3kh1bPXPM \
+ --mint orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L
+
+9dX7Fz5qMQU27VnYjv56mCN4VCCe6Er6EwJSwqwgD9cE
 
 <!-- todo: test B/A for A/B -->
 
 ts-node ./src/cli.ts invest_orca --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
  --orcaSwapProgram 3xQ8SWv2GaFXXpHZNqkXsdxq5DZciHBz6ZFoPPfbFd7U \
  --pair ORCA_SOL \
- --alpha 0.01 \
- --beta 1 \
+ --alpha 0.02 \
+ --beta 0.00038469001175088133 \
  --execute true
 
 ts-node ./src/cli.ts redeem_orca --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
  --orcaSwapProgram 3xQ8SWv2GaFXXpHZNqkXsdxq5DZciHBz6ZFoPPfbFd7U \
  --pair ORCA_SOL \
- --execute false
+ --execute true
 
 ts-node ./src/cli.ts process_claims --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
- --execute false
-
-ts-node ./src/cli.ts claim --env devnet \
- --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
- --mint So11111111111111111111111111111111111111112 \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
+ --mint orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
  --execute true
 
 ts-node ./src/cli.ts claim --env devnet \
+ --keypair ../mintKeys/depositor2.json \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
+ --mint So11111111111111111111111111111111111111112 \
+ --execute true
+
+J49LVNp7kwbeuZfkojcn6hpV1HSwXbg76ur3kh1bPXPM -> 1199615748
+depositor2 9dX7Fz5qMQU27VnYjv56mCN4VCCe6Er6EwJSwqwgD9cE -> 1200000000
+depositor1 9yQZBpYBAdEMNxnzWwstcu5ZQjwNa1VzsAfPKkTPxnwe -> 1000000000
+
+ts-node ./src/cli.ts claim --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
- --mint orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
+ --mint So11111111111111111111111111111111111111112 \
  --execute true
 
 ts-node ./src/cli.ts show_depositors --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
  --mint So11111111111111111111111111111111111111112 \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN
 
 ts-node ./src/cli.ts show_deposit_history --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
- --mint orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
- --depositor J49LVNp7kwbeuZfkojcn6hpV1HSwXbg76ur3kh1bPXPM
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
+ --mint So11111111111111111111111111111111111111112 \
+ --depositor 9yQZBpYBAdEMNxnzWwstcu5ZQjwNa1VzsAfPKkTPxnwe
 
 ts-node ./src/cli.ts show_depositors --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
- --mint So11111111111111111111111111111111111111112
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
+ --mint orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L
+
+ts-node ./src/cli.ts get_invest_estimate --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
+ --pair ORCA_SOL
 
 https://solscan.io/tx/2kz17Me2QUzUWNUZkcoNdC6xk4iJpLCARBHhiDxEMGR8Mk3a2KEDpU2C26MpkGySf46uey2noFg4JqMwt4macx5Y?cluster=devnet
 
 ts-node ./src/cli.ts withdraw --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
  --mint So11111111111111111111111111111111111111112 \
  --execute true
 
 ts-node ./src/cli.ts withdraw --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
  --mint orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
  --execute true
 
 ts-node ./src/cli.ts claim --env devnet \
  --keypair /Users/jacobshiohira/sooshisan/ora/mintKeys/depositor1.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
  --mint So11111111111111111111111111111111111111112 \
  --execute true
 
 ts-node ./src/cli.ts withdraw --env devnet \
- --keypair /Users/jacobshiohira/sooshisan/ora/mintKeys/depositor1.json \
- --vault C4bZWoUu5FY1wk6vwiTirMCRLzWE5Nud5FLqoVWGkiqV \
+ --keypair /Users/jacobshiohira/sooshisan/ora/mintKeys/depositor2.json \
+ --vault 9hM5Nht3z52hJbLpxZeXty7DkuDoHNnTtPxYKYZhxrNN \
  --mint So11111111111111111111111111111111111111112 \
  --execute true
 
@@ -378,3 +418,6 @@ ts-node ./src/cli.ts token_supply --env mainnet-beta \
 
 ts-node ./src/cli.ts token_supply --env mainnet-beta \
  --mint DUSTawucrTsGU8hcqRdHDCbuYhCPADMLM2VcCb8VnFnQ
+
+<!-- https://api.coingecko.com/api/v3/simple/price?ids=solana,orca&vs_currencies=usd -->
+<!-- https://api.coingecko.com/api/v3/simple/price?ids=1sol,all-art,allbridge,apricot,star-atlas,audius-wormhole,aurory,avalanche-2,basis-markets,,boring-protocol,bitcoin,cato,celo,solchicks-token,compendium-fi,cope,defi-land,ethereum,phantasia,bonfida,frakt-token,fantom,ftx-token,genopets,stepn,goosefx,grape-2,green-satoshi-token,hubble,,investin,jet,jpool,kin,kurobi,larix,liq-protocol,maps,meanfi,media-network,mercurial,mma-gaming,marinade,mango-markets,ninja-protocol,nova-finance,oogi,oxygen,,star-atlas-dao,port-finance,parrot-protocol,puff,raydium,rope-token,run,samoyedcoin,sator,superbonds,saber,synchrony,soldoge,,genesysgo-shadow,solice,solanium,solend,solrise-finance,synthetify-token,solana,sonarwatch,serum,step-finance,sunny-aggregator,sypool,taki,tabtrader,solfarm,unq,upfi-network,usd-coin,usdh,tether,uxd-protocol-token,,whalemap,woof-token,zebec-protocol,zignaly,,msol,,rally-solana,,socean-staked-sol,,lido-staked-sol,hapi,lido-dao,terra-luna,terrausd-wormhole,ethereum,staked-ether&vs_currencies=usd -->

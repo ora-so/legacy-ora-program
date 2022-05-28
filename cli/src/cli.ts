@@ -35,6 +35,11 @@ import {
   toU64,
   toIVault,
   clusterToNetwork,
+  toOrcaU64,
+  scaleToOrcaU64,
+  getOrcaPool,
+  getAquafarm,
+  getDoubleDipFarm,
 } from "@ora-protocol/sdk";
 
 import {
@@ -274,6 +279,8 @@ programCommand("show_orca_strategy")
     log.info("Version: ", strategy.version);
     log.info("Swap program: ", strategy.swapProgram.toBase58());
     log.info("Farm program: ", strategy.farmProgram.toBase58());
+    log.info("Token A: ", strategy.tokenA.toBase58());
+    log.info("Token B: ", strategy.tokenB.toBase58());
     log.info("Base LP: ", strategy.baseLp.toBase58());
     log.info("Farm LP: ", strategy.farmLp.toBase58());
     if (strategy.doubleDipLp) {
@@ -451,6 +458,13 @@ programCommand("show_vault")
     log.info("Excess: ", alpha.excess.toNumber());
     log.info("Received: ", alpha.received.toNumber());
 
+    log.info("=== Claims ===");
+    log.info("Claims processed: ", alpha.claimsProcessed);
+    log.info(
+      "Claims index: ",
+      alpha.claimsIdx ? alpha.claimsIdx.toNumber() : "Not defined"
+    );
+
     log.info("Beta asset ===============================");
     const beta = _vault.beta;
     log.info("Mint: ", beta.mint.toBase58());
@@ -466,6 +480,13 @@ programCommand("show_vault")
     log.info("Excess: ", beta.excess.toNumber());
     log.info("Received: ", beta.received.toNumber());
 
+    log.info("=== Claims ===");
+    log.info("Claims processed: ", beta.claimsProcessed);
+    log.info(
+      "Claims index: ",
+      beta.claimsIdx ? beta.claimsIdx.toNumber() : "Not defined"
+    );
+
     if (_vault.farmVault) {
       log.info("Farm vault: ", _vault.farmVault.toBase58());
     } else {
@@ -480,17 +501,6 @@ programCommand("show_vault")
     log.info("Vault start at: ", _vault.startAt.toNumber());
     log.info("Vault invest at: ", _vault.investAt.toNumber());
     log.info("Vault redeem at: ", _vault.redeemAt.toNumber());
-    log.info("===========================================");
-    log.info(
-      "Excess asset: ",
-      _vault.excess ? _vault.excess.toBase58() : "Not defined"
-    );
-    log.info("Claims processed: ", _vault.claimsProcessed);
-    log.info(
-      "Claims index: ",
-      _vault.claimsIdx ? _vault.claimsIdx.toNumber() : "Not defined"
-    );
-    log.info("===========================================");
   });
 
 programCommand("show_receipts")
@@ -512,6 +522,7 @@ programCommand("show_receipts")
     const _asset = _client.getAsset(toIVault(__vault), _mint);
     const numDeposits = _asset.deposits.toNumber();
     console.log(`numDeposits for ${_mint.toBase58()}: ${numDeposits}`);
+    console.log("===========================================");
 
     for (let i = numDeposits; i > 0; i--) {
       const { addr: receipt } = await _client.generateReceiptAddress(
@@ -521,7 +532,13 @@ programCommand("show_receipts")
       );
 
       const _receipt = await _client.fetchReceipt(receipt);
-      console.log(`deposit ${i}'s receipt ${receipt.toBase58()}: `, _receipt);
+
+      console.log(`deposit ${i}'s receipt ${receipt.toBase58()}: `);
+      console.log("bump: ", _receipt.bump);
+      console.log("amount: ", _receipt.amount.toNumber());
+      console.log("cumulative: ", _receipt.cumulative.toNumber());
+      console.log("depositor: ", _receipt.depositor.toBase58());
+      console.log("===========================================");
     }
   });
 
@@ -604,21 +621,28 @@ programCommand("show_deposit_history")
     for (const _mint of mints) {
       const _asset = _client.getAsset(toIVault(__vault), _mint);
       const numDeposits = _asset.deposits.toNumber();
-      console.log(`Num deposits for ${_mint.toBase58()}: ${numDeposits}`);
+      console.log(`> Num deposits for ${_mint.toBase58()}: ${numDeposits}`);
 
-      const { addr: history } = await _client.generateHistoryAddress(
+      const { addr: history, bump } = await _client.generateHistoryAddress(
         _vault,
         _mint,
         _depositor
       );
 
-      const _history = await _client.fetchHistory(history);
+      try {
+        const _history = await _client.fetchHistory(history);
 
-      log.info(`Initialized: ${_history.intialized}`);
-      log.info(`Deposits: ${_history.deposits.toNumber()}`);
-      log.info(`Cumulative: ${_history.cumulative.toNumber()}`);
-      log.info(`Claim: ${_history.claim.toNumber()}`);
-      log.info("===========================================");
+        log.info(`Account: ${history}`);
+        log.info(`Bump: ${bump}`);
+        log.info(`Initialized: ${_history.intialized}`);
+        log.info(`Deposits: ${_history.deposits.toNumber()}`);
+        log.info(`Cumulative: ${_history.cumulative.toNumber()}`);
+        log.info(`Claim: ${_history.claim.toNumber()}`);
+        log.info(`CanClaimTrancheLp: ${_history.canClaimTrancheLp}`);
+        log.info("===========================================");
+      } catch (err: any) {
+        // no-op
+      }
     }
   });
 
@@ -684,17 +708,20 @@ programCommand("process_claims")
     "-v, --vault <pubkey>",
     "Public key of the vault into which you want to deposit funds"
   )
+  .option("-m --mint <pubkey>", "Public key of the asset you want to deposit")
   .option("-e, --execute <boolean>", "Execute transaction or not")
   .action(async (_, cmd) => {
-    const { keypair, env, vault, execute } = cmd.opts();
+    const { keypair, env, vault, mint, execute } = cmd.opts();
 
     const walletKeyPair: Keypair = loadWalletKey(keypair);
     const _client = createClient(env, walletKeyPair);
     const _vault = new PublicKey(vault);
+    const _mint = new PublicKey(mint);
     const _execute = execute === "true" ? true : false;
 
     const { tx, claimsProcessed } = await _client.processClaims(
       _vault,
+      _mint,
       walletKeyPair,
       _execute
     );
@@ -761,6 +788,101 @@ programCommand("withdraw")
 // ============================================================================
 // orca related commands
 // ============================================================================
+
+programCommand("get_invest_estimate")
+  .option("-v, --vault <pubkey>", "Vault pubkey")
+  .option("-p, --pair <string>", "Orca pool pair (e.g. ORCA_SOL)")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, pair } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _vault = new PublicKey(vault);
+
+    const orca = getOrca(_client.provider.connection, clusterToNetwork(env));
+    const { pool } = getOrcaPool(orca, pair);
+    const __vault = await _client.fetchVault(_vault);
+
+    const tokenA = pool.getTokenA();
+    const tokenAName = tokenA.name.toLowerCase();
+    const tokenB = pool.getTokenB();
+    const tokenBName = tokenB.name.toLowerCase();
+
+    const tokenPrices = await fetchTokenPrices([tokenAName, tokenBName]);
+
+    // map tokens to tranches
+    const alphaDecimals = (await _client.fetchTokenSupply(__vault.alpha.mint))
+      .decimals;
+    const alphaAsDecimal =
+      __vault.alpha.deposited.toNumber() / 10 ** alphaDecimals;
+    console.log("alphaAsDecimal: ", alphaAsDecimal);
+    const betaDecimals = (await _client.fetchTokenSupply(__vault.beta.mint))
+      .decimals;
+    const betaAsDecimal =
+      __vault.beta.deposited.toNumber() / 10 ** betaDecimals;
+    console.log("betaAsDecimal: ", betaAsDecimal);
+
+    console.log("tokenPrices[tokenAName]: ", tokenPrices.get(tokenAName));
+    console.log("tokenPrices[tokenBName]: ", tokenPrices.get(tokenBName));
+
+    const alphaInUsd =
+      __vault.alpha.mint.toBase58() === tokenA.mint.toBase58()
+        ? tokenPrices.get(tokenAName)
+        : tokenPrices.get(tokenBName);
+    const alphaAsUsd = alphaAsDecimal * alphaInUsd;
+    console.log("alphaAsUsd: ", alphaAsUsd);
+
+    const betaInUsd =
+      __vault.beta.mint.toBase58() === tokenA.mint.toBase58()
+        ? tokenPrices.get(tokenAName)
+        : tokenPrices.get(tokenBName);
+    const betaAsUsd = betaAsDecimal * betaInUsd;
+    console.log("betaAsUsd: ", betaAsUsd);
+
+    // get min
+    let inputAlpha: number = 0;
+    let inputBeta: number = 0;
+    if (alphaAsUsd > betaAsUsd) {
+      // compute equivalent alpha to match beta
+      inputAlpha = betaAsUsd / alphaInUsd;
+      inputBeta = betaAsUsd / betaInUsd;
+    } else if (alphaAsUsd < betaAsUsd) {
+      // compute equivalent beta to match alpha
+      inputAlpha = alphaAsUsd / alphaInUsd;
+      inputBeta = alphaAsUsd / betaInUsd;
+    } else {
+      inputAlpha = alphaAsUsd / alphaInUsd;
+      inputBeta = betaAsUsd / betaInUsd;
+    }
+
+    console.log("inputAlpha: ", inputAlpha);
+    console.log("inputBeta: ", inputBeta);
+
+    // const quote = await pool.getDepositQuote(alphaAsDecimal, betaAsDecimal);
+    // console.log("quote::out => ", quote.minPoolTokenAmountOut.toNumber());
+    // console.log("quote::maxAIn => ", quote.maxTokenAIn.toNumber());
+    // console.log("quote::maxBIn => ", quote.maxTokenBIn.toNumber());
+  });
+
+export const fetchTokenPrices = async (
+  tokens: string[],
+  currency: string = "usd"
+): Promise<Map<string, number>> => {
+  const uri = `https://api.coingecko.com/api/v3/simple/price?ids=${tokens.join(
+    ","
+  )}&vs_currencies=${currency}`;
+
+  const result = await fetch(uri)
+    .then((response) => response.json())
+    .then((result) => result);
+
+  const tokenToPrice = new Map<string, number>();
+  tokens.forEach((token) => {
+    tokenToPrice.set(token, +result[token][currency]);
+  });
+
+  return tokenToPrice;
+};
 
 programCommand("initialize_user_farm")
   .option("-v, --vault <pubkey>", "Vault pubkey")
@@ -1397,44 +1519,3 @@ const createClient = (cluster: Cluster, keypair: Keypair) => {
 };
 
 program.parse(process.argv);
-
-// todo: add type
-export const getOrcaPool = (orca: Orca, pair: string) => {
-  try {
-    const pool = orca.getPool(OrcaPoolConfig[pair]);
-    return {
-      pool,
-      poolParams: (pool as any).poolParams,
-    };
-  } catch (err: any) {
-    throw new Error(`pool not found for ${pair}`);
-  }
-};
-
-export const getAquafarm = (
-  orca: Orca,
-  pair: string
-): OrcaFarmParams | null => {
-  const farmPair = `${pair}_AQ`; // transform `ORCA_SOL` to `ORCA_SOL_AQ`
-
-  try {
-    const orcaSolFarm = orca.getFarm(OrcaFarmConfig[farmPair]);
-    return (orcaSolFarm as any).farmParams;
-  } catch (err: any) {
-    return null;
-  }
-};
-
-export const getDoubleDipFarm = (
-  orca: Orca,
-  pair: string
-): OrcaFarmParams | null => {
-  const doubleDipPair = `${pair}_DD`; // transform `ORCA_SOL` to `ORCA_SOL_AQ`
-
-  try {
-    const doubleDipFarm = orca.getFarm(OrcaFarmConfig[doubleDipPair]);
-    return (doubleDipFarm as any).farmParams;
-  } catch (err: any) {
-    return null;
-  }
-};

@@ -3,7 +3,7 @@ import { Program, Provider, Idl, Wallet, BN } from "@project-serum/anchor";
 import {
   StableSwap,
   SWAP_PROGRAM_ID,
-  ZERO_FEES,
+  // ZERO_FEES,
 } from "@saberhq/stableswap-sdk";
 import {
   AccountLayout,
@@ -61,7 +61,6 @@ import {
   getSignersFromPayer,
   flattenValidInstructions,
   toIVault,
-  toU64,
 } from "./common/util";
 import { Vault } from "./types/vault";
 import { getOrCreateATA } from "./common";
@@ -1652,11 +1651,11 @@ export class VaultClient extends AccountUtils {
 
   _toAccountMeta = (receipt: PublicKey, history: PublicKey) => {
     return [receipt, history].map(
-      (acc, _): AccountMeta => ({
+      (acc, idx): AccountMeta => ({
         pubkey: acc,
         isSigner: false,
         // history (idx 1) should be writable
-        isWritable: true, //  idx % 2 !== 0 ? false :
+        isWritable: true, // idx % 2 !== 0,
       })
     );
   };
@@ -1664,23 +1663,23 @@ export class VaultClient extends AccountUtils {
   _getAccountsForClaim = async (
     vaultAddress: PublicKey,
     vault: IVault,
+    mint: PublicKey,
     count: number = 10
   ): Promise<AccountMeta[]> => {
-    if (!vault.excess)
+    const asset = this.getAsset(vault, mint);
+
+    if (asset.excess.toNumber() === 0)
       throw new Error(
-        "No excess mint defined. Can only process claims after vault funds are invested."
+        "No excess defined. Can only process claims after vault funds are invested."
       );
 
-    const excessMint = vault.excess;
-    console.log("excessMint: ", excessMint.toBase58());
-
     const remainingAccounts: AccountMeta[] = [];
-    if (vault.claimsProcessed) return remainingAccounts;
+    // if (asset.claimsProcessed) return remainingAccounts;
 
-    const _asset = this.getAsset(vault, excessMint);
-    let _claimsIndex = new u64(
-      vault.claimsIdx ? vault.claimsIdx : _asset.deposits
-    );
+    let _claimsIndex = asset.deposits;
+    // let _claimsIndex = new u64(
+    //   asset.claimsIdx ? asset.claimsIdx : asset.deposits
+    // );
 
     console.log("_claimsIndex: ", _claimsIndex.toNumber());
 
@@ -1692,7 +1691,7 @@ export class VaultClient extends AccountUtils {
 
       const { addr: receipt } = await this.generateReceiptAddress(
         vaultAddress,
-        excessMint,
+        asset.mint,
         _claimsIndex
       );
 
@@ -1701,10 +1700,13 @@ export class VaultClient extends AccountUtils {
 
       const { addr: history } = await this.generateHistoryAddress(
         vaultAddress,
-        excessMint,
+        asset.mint,
         _receipt.depositor
       );
+
       console.log("history: ", history);
+      const _history = await this.fetchHistory(history);
+      console.log("_history: ", _history);
 
       remainingAccounts.push(...this._toAccountMeta(receipt, history));
 
@@ -1726,6 +1728,7 @@ export class VaultClient extends AccountUtils {
    */
   processClaims = async (
     vault: PublicKey,
+    mint: PublicKey,
     payer: PublicKey | Keypair,
     executeTransaction: boolean = true
   ): Promise<ProcessClaimsResult> => {
@@ -1733,11 +1736,16 @@ export class VaultClient extends AccountUtils {
 
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
     const _vault = await this.fetchVault(vault);
+    const _asset = await this.getAsset(toIVault(_vault), mint);
+
+    console.log("_asset: ", _asset.mint.toBase58());
 
     const remainingAccounts = await this._getAccountsForClaim(
       vault,
-      toIVault(_vault)
+      toIVault(_vault),
+      mint
     );
+    console.log("remainingAccounts: ", remainingAccounts.length);
 
     if (executeTransaction) {
       const tx = await this.vaultProgram.rpc.processClaims({
@@ -1746,13 +1754,19 @@ export class VaultClient extends AccountUtils {
           authority: _vault.authority,
           globalProtocolState: globalStateAddr,
           vault,
+          mint: _asset.mint,
         },
         remainingAccounts,
         signers: signerInfo.signers,
       });
 
+      const assetAfterProcessing = await this.getAsset(
+        toIVault(await this.fetchVault(vault)),
+        mint
+      );
+
       return {
-        claimsProcessed: (await this.fetchVault(vault)).claimsProcessed,
+        claimsProcessed: assetAfterProcessing.claimsProcessed,
         tx,
       };
     }
@@ -2051,6 +2065,7 @@ export class VaultClient extends AccountUtils {
           rent: SYSVAR_RENT_PUBKEY,
         },
         preInstructions: destinationTokenAccount.instructions,
+        // todo: can we close LP ATA after this?
         postInstructions: destinationTokenAccount.cleanup,
         signers: [...signerInfo.signers, ...destinationTokenAccount.signers],
       });

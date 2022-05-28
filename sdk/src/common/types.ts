@@ -97,6 +97,8 @@ export interface IAsset {
   invested: u64;
   excess: u64;
   received: u64;
+  claimsProcessed: boolean;
+  claimsIdx?: u64;
 }
 
 export enum State {
@@ -120,10 +122,6 @@ export interface IVault {
   investAt: u64;
   redeemAt: u64;
   farmVault?: PublicKey;
-  // related to claims
-  excess?: PublicKey;
-  claimsProcessed: boolean;
-  claimsIdx?: u64;
 }
 
 export interface SaberLpStrategyV0 {

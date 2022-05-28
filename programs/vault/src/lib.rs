@@ -105,7 +105,9 @@ pub mod vault {
     }
 
     #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
-    pub fn process_claims(ctx: Context<ProcessClaims>) -> ProgramResult {
+    pub fn process_claims<'info>(
+        ctx: Context<'_, '_, '_, 'info, ProcessClaims<'info>>,
+    ) -> ProgramResult {
         instructions::process_claims::handle(ctx)?;
 
         Ok(())

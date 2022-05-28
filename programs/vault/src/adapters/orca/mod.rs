@@ -13,7 +13,7 @@ use crate::{
     revert_lp::Reverter,
     state::{GlobalProtocolState, HasVault, StrategyFlag, Vault},
     swap::Swapper,
-    util::{create_or_allocate_account_raw, get_spl_amount, transfer_tokens},
+    util::{create_or_allocate_account_raw, get_spl_amount, transfer_tokens, get_spl_mint},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::TokenAccount;
@@ -43,10 +43,19 @@ pub fn into_pool_endpoints<'info>(
     let alpha_asset: PoolEndpoints;
     let beta_asset: PoolEndpoints;
 
+    let token_a_mint = get_spl_mint(&source_token_a_account_info)?;
+    let token_b_mint = get_spl_mint(&source_token_b_account_info)?;
+
+    msg!("alpha_mint: {}", alpha_mint);
+    msg!("beta_mint: {}", beta_mint);
+    msg!("token_a_mint: {}", token_a_mint);
+    msg!("token_b_mint: {}", token_b_mint);
+
     // todo: migrate to match arm
-    if source_token_a_account_info.key == alpha_mint
-        && source_token_b_account_info.key == beta_mint
+    if token_a_mint == *alpha_mint && token_b_mint == *beta_mint
     {
+        msg!("a is alpha, b is beta");
+
         alpha_asset = PoolEndpoints {
             user: source_token_a_account_info,
             pool: from_token_a_account_info,
@@ -56,9 +65,10 @@ pub fn into_pool_endpoints<'info>(
             user: source_token_b_account_info,
             pool: from_token_b_account_info,
         };
-    } else if source_token_a_account_info.key == beta_mint
-        && source_token_b_account_info.key == alpha_mint
+    } else if token_a_mint == *beta_mint && token_b_mint == *alpha_mint
     {
+        msg!("b is alpha, a is beta");
+
         alpha_asset = PoolEndpoints {
             user: source_token_b_account_info,
             pool: from_token_b_account_info,
@@ -69,6 +79,7 @@ pub fn into_pool_endpoints<'info>(
             pool: from_token_a_account_info,
         };
     } else {
+        msg!("wtfffff... PublicKeyMismatch");
         return Err(PublicKeyMismatch.into());
     }
 
@@ -312,6 +323,8 @@ impl_has_vault!(InvestOrca<'_>);
 
 impl<'info> Invest<'info> for InvestOrca<'info> {
     fn invest(&mut self, amount_a: u64, amount_b: u64, min_out: u64) -> OraResult<(u64, u64)> {
+        msg!("verify orca swap");
+
         let orca_swap_program_account_info = self.orca_swap_program.to_account_info();
         // root orca swap program ID, now we can make assume Orca will correctly verify orca related accounts during CPI
         require!(
@@ -322,6 +335,7 @@ impl<'info> Invest<'info> for InvestOrca<'info> {
         let vault_alpha_mint = self.vault.alpha.mint;
         let vault_beta_mint = self.vault.beta.mint;
 
+        msg!("get pool inputs");
         let (alpha_asset, beta_asset) = into_pool_endpoints(
             &vault_alpha_mint,
             &vault_beta_mint,
@@ -333,6 +347,8 @@ impl<'info> Invest<'info> for InvestOrca<'info> {
 
         let alpha_amount_before = get_spl_amount(&alpha_asset.user)?;
         let beta_amount_before = get_spl_amount(&beta_asset.user)?;
+        msg!("alpha_amount_before: {}", alpha_amount_before);
+        msg!("beta_amount_before: {}", beta_amount_before);
 
         let vault_signer_seeds =
             generate_vault_seeds!(*self.authority.key.as_ref(), self.vault.bump);
@@ -358,15 +374,19 @@ impl<'info> Invest<'info> for InvestOrca<'info> {
 
         let alpha_amount_after = get_spl_amount(&alpha_asset.user)?;
         let beta_amount_after = get_spl_amount(&beta_asset.user)?;
+        msg!("alpha_amount_after: {}", alpha_amount_after);
+        msg!("beta_amount_after: {}", beta_amount_after);
 
         // before - after because we invest funds, so before > after
         let alpha_invested_amount = alpha_amount_before
             .checked_sub(alpha_amount_after)
             .ok_or_else(math_error!())?;
+        msg!("alpha_invested_amount: {}", alpha_invested_amount);
 
         let beta_invested_amount = beta_amount_before
             .checked_sub(beta_amount_after)
             .ok_or_else(math_error!())?;
+        msg!("beta_invested_amount: {}", beta_invested_amount);
 
         let mutable_vault = self.vault_mut();
         mutable_vault.get_alpha_mut()?.update_with_investment(alpha_invested_amount)?;

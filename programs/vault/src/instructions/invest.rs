@@ -21,16 +21,19 @@ pub fn handle<'info, T: Invest<'info> + HasVault>(
     min_tokens_back: u64,
 ) -> ProgramResult {
     ctx.accounts.vault_mut().try_transition()?;
+    msg!("transitioning");
     require!(
         ctx.accounts.vault().state() == State::Live,
         ErrorCode::InvalidVaultState
     );
+    msg!("transitioned");
 
     // both sides of the vault must have deposits in order to inevst
     require!(
         ctx.accounts.vault().has_deposits(),
         ErrorCode::VaultHasNoDeposits
     );
+    msg!("verified deposits");
 
     // todo: rename; beta is junior, alpha is senior
     let (invested_alpha, invested_beta) = ctx.accounts

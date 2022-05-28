@@ -2,11 +2,10 @@ use crate::{
     constant::{GLOBAL_STATE_SEED, HISTORY_SEED, VAULT_SEED},
     error::ErrorCode,
     state::{vault::Vault, GlobalProtocolState, History},
-    util::{mint_with_verified_ata, transfer_with_verified_ata},
+    util::{mint_with_verified_ata, spl_token_transfer},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
-use std::ops::DerefMut;
 
 #[derive(Accounts)]
 pub struct Claim<'info> {
@@ -106,23 +105,18 @@ pub fn handle(ctx: Context<Claim>) -> ProgramResult {
 
     if claim_amount > 0 {
         msg!("claim amount: {:?}", claim_amount);
-        transfer_with_verified_ata(
+
+        spl_token_transfer(
+            ctx.accounts.token_program.to_account_info(),
             ctx.accounts.source_ata.to_account_info(),
             ctx.accounts.destination_ata.to_account_info(),
-            ctx.accounts.payer.to_account_info(),
-            ctx.accounts.mint.to_account_info(),
-            ctx.accounts.payer.to_account_info(),
-            ctx.accounts.ata_program.to_account_info(),
-            ctx.accounts.token_program.to_account_info(),
-            ctx.accounts.system_program.to_account_info(),
-            ctx.accounts.rent.to_account_info(),
-            &[],
             ctx.accounts.vault.to_account_info(),
-            vault_signer_seeds, // todo: does this work?
-            claim_amount,
+            &[vault_signer_seeds],
+            claim_amount
         )?;
 
-        ctx.accounts.history.deref_mut().reset_claim();
+        // don't need deref_mut right?
+        ctx.accounts.history.reset_claim();
     }
 
     // mint LP (SPL token) to user relative to the deposited amount to represent their position
@@ -147,7 +141,7 @@ pub fn handle(ctx: Context<Claim>) -> ProgramResult {
             lp_amount, // 1-1 asset to LP amount
         )?;
     
-        ctx.accounts.history.deref_mut().claim_tranche_lp();
+        ctx.accounts.history.claim_tranche_lp();
     }
 
     Ok(())

@@ -30,6 +30,10 @@ pub fn get_spl_amount<'a>(token_account: &AccountInfo<'a>) -> OraResult<u64> {
     Ok(get_spl_account(&token_account)?.amount)
 }
 
+pub fn get_spl_mint<'a>(token_account: &AccountInfo<'a>) -> OraResult<Pubkey> {
+    Ok(get_spl_account(&token_account)?.mint)
+}
+
 pub fn get_current_timestamp() -> Result<u64, ProgramError> {
     // i64 -> u64 ok to unwrap
     Ok(clock::Clock::get()?.unix_timestamp.try_into().unwrap())

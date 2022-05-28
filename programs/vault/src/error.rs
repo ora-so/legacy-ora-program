@@ -87,4 +87,7 @@ pub enum ErrorCode {
     DecimalMismatch,
     #[msg("Already claimed LP tokens")]
     AlreadyClaimedLpTokens,
+
+    #[msg("Unable to write to remaining account")]
+    UnableToWriteToRemainingAccount,
 }

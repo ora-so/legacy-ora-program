@@ -10,7 +10,6 @@ use anchor_lang::prelude::*;
 use solana_program::account_info::next_account_infos;
 use std::convert::TryInto;
 use vipers::unwrap_int;
-use std::ops::DerefMut;
 
 // todo: who can invoke function? authority on vault?
 #[derive(Accounts)]
@@ -45,11 +44,10 @@ pub struct ProcessClaims<'info> {
 
 #[derive(Accounts)]
 pub struct ProcessClaimInfo<'info> {
-    #[account(mut)]
-    pub receipt: Box<Account<'info, Receipt>>,
+    pub receipt: Account<'info, Receipt>,
 
     #[account(mut)]
-    pub history: Box<Account<'info, History>>,
+    pub history: Account<'info, History>,
 }
 
 ///  After investing funds, we will know if there are any excess assets for users to claim.
@@ -87,7 +85,10 @@ pub struct ProcessClaimInfo<'info> {
 ///  account limits.
 ///  relate n & n+1 accounts for user (deposit, history) -> update vault
 ///
-pub fn handle(ctx: Context<ProcessClaims>) -> ProgramResult {
+
+pub fn handle<'info>(
+    ctx: Context<'_, '_, '_, 'info, ProcessClaims<'info>>,
+) -> ProgramResult {
     // @dev: we intentionally avoid checking vault state at this point. we want to process claims
 
     let vault_key = ctx.accounts.vault.key();
@@ -95,19 +96,25 @@ pub fn handle(ctx: Context<ProcessClaims>) -> ProgramResult {
 
     // if no excess for asset, set processed_claims = true and exit
     if asset_to_process.excess == 0 {
-        asset_to_process.finalize_claims();
-        return Ok(())
+        msg!("no excess to process; normally exit");
+        // asset_to_process.finalize_claims();
+        // return Ok(())
     }
 
     // no more claims to process, exit early
     if asset_to_process.claims_already_processed() {
-        return Ok(());
+        msg!("claims_already_processed. normally, exit early");
+        // return Ok(());
     }
 
     // if no value is set (first time processing), the default will be the total number of depoits on the vault
-    let start = asset_to_process.claims_idx.unwrap_or(asset_to_process.deposits);
+    // let start = asset_to_process.claims_idx.unwrap_or(asset_to_process.deposits);
+    let start = asset_to_process.deposits;
+    msg!("start: {}", start);
 
     let asset_amount_invested = asset_to_process.invested;
+    msg!("asset_amount_invested: {}", asset_amount_invested);
+
     let remaining_accounts = ctx.remaining_accounts;
     let num_remaining_accounts = remaining_accounts.len();
     let num_accounts_to_process = unwrap_int!(num_remaining_accounts.checked_div(2));
@@ -115,16 +122,16 @@ pub fn handle(ctx: Context<ProcessClaims>) -> ProgramResult {
     // keep track of actual number of accounts processed. we need this on top of remaining accounts count in case we exit early.
     let mut num_claims_processsed = 0 as u64;
     for idx in 0..num_accounts_to_process {
-        let mut process_claim_info: ProcessClaimInfo = Accounts::try_accounts(
+        let mut process_claim_info: ProcessClaimInfo<'info> = Accounts::try_accounts(
             &crate::ID,
             &mut next_account_infos(remaining_accounts_iter, 2)?,
             &[],
         )?;
-
         // we are walking backward, so we go from n to n-m
         let claim_idx = start
             .checked_sub(idx.try_into().unwrap())
             .ok_or_else(math_error!())?;
+        msg!("claim_idx: {}", claim_idx);
 
         // todo: do we also need to check discriminator?
         let receipt_info = &process_claim_info.receipt.to_account_info();
@@ -150,16 +157,26 @@ pub fn handle(ctx: Context<ProcessClaims>) -> ProgramResult {
 
         let cumulative_amount = process_claim_info.receipt.cumulative;
         let deposit_amount = process_claim_info.receipt.amount;
+        msg!("cumulative_amount: {}", cumulative_amount);
+        msg!("deposit_amount: {}", deposit_amount);
 
         let (amount, is_complete) =
             compute_claim_amount(asset_amount_invested, cumulative_amount, deposit_amount)?;
-        process_claim_info.history.deref_mut().add_claim(amount)?;
+
+        process_claim_info.history.add_claim(amount)?;
+        process_claim_info.history
+            .exit(&crate::ID)
+            .or(Err(ErrorCode::UnableToWriteToRemainingAccount))?;
+
+        msg!("amount: {}", amount);
+        msg!("is_complete: {}", is_complete);
 
         num_claims_processsed = num_claims_processsed
             .checked_add(1)
             .ok_or_else(math_error!())?;
 
         if is_complete {
+            msg!("done, finalize claims");
             asset_to_process.finalize_claims();
             break;
         }
@@ -170,7 +187,9 @@ pub fn handle(ctx: Context<ProcessClaims>) -> ProgramResult {
         .checked_sub(num_claims_processsed.try_into().unwrap())
         .ok_or_else(math_error!())?;
 
-    asset_to_process.update_claims_index(end_idx);
+    msg!("end_idx: {}", end_idx);
+
+    // asset_to_process.update_claims_index(end_idx);
 
     Ok(())
 }
@@ -184,18 +203,24 @@ pub fn compute_claim_amount(
     let cumulative_after_deposit = cumulative
         .checked_add(deposited)
         .ok_or_else(math_error!())?;
+    msg!("cumulative_after_deposit: {}", cumulative_after_deposit);
 
     if cumulative >= invested {
+        msg!("cumulative >= invested");
         // cumulative greater than amount invested, before investment; return full amount
         return Ok((deposited, false));
     } else if cumulative_after_deposit > invested {
+        msg!("cumulative_after_deposit >= invested");
         // return marginal amount; we found cross over point for claims
         let claim_amount = cumulative_after_deposit
             .checked_sub(invested)
             .ok_or_else(math_error!())?;
+        msg!("claim_amount: {}", claim_amount);
 
         return Ok((claim_amount, true));
     }
+
+    msg!("claim_amount: {}", 0);
 
     Ok((0, true))
 }

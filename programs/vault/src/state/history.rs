@@ -12,7 +12,7 @@ use std::result::Result;
  *  - user pubkey
  */
 #[account]
-#[derive(Debug, Default, PartialEq)]
+#[derive(Copy, Debug, Default, PartialEq)]
 pub struct History {
     /// bump
     pub bump: u8,
@@ -62,7 +62,9 @@ impl History {
     }
 
     pub fn add_claim(&mut self, amount: u64) -> Result<(), ProgramError> {
+        msg!("before: {}, amount: {}", self.claim, amount);
         self.claim = self.claim.checked_add(amount).ok_or_else(math_error!())?;
+        msg!("after: {}", self.claim);
 
         Ok(())
     }
