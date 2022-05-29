@@ -1452,13 +1452,20 @@ export class VaultClient extends AccountUtils {
 
     console.log("==========================================");
     console.log("investing the following amounts...");
-    console.log("a: ", maxAmountA.toNumber());
-    console.log("b: ", maxAmountB.toNumber());
+    console.log("a: ", orcaInvestment.a.token.mint.toBase58());
+    console.log("a amount: ", maxAmountA.toNumber());
+    console.log("b: ", orcaInvestment.b.token.mint.toBase58());
+    console.log("b amount: ", maxAmountB.toNumber());
+
     console.log(
       "in exchange for lp: ",
       orcaInvestment.poolToken.amount.toNumber()
     );
     console.log("==========================================");
+
+    console.log("payer: ", signerInfo.payer.toBase58());
+    console.log("strategy: ", _vault.strategy.toBase58());
+    console.log("authority: ", _vault.authority.toBase58());
 
     const { instructions, cleanup, signers } = orcaInvestment.instructions;
 
@@ -1655,7 +1662,7 @@ export class VaultClient extends AccountUtils {
         pubkey: acc,
         isSigner: false,
         // history (idx 1) should be writable
-        isWritable: true, // idx % 2 !== 0,
+        isWritable: idx % 2 !== 0,
       })
     );
   };
@@ -1674,13 +1681,11 @@ export class VaultClient extends AccountUtils {
       );
 
     const remainingAccounts: AccountMeta[] = [];
-    // if (asset.claimsProcessed) return remainingAccounts;
+    if (asset.claimsProcessed) return remainingAccounts;
 
-    let _claimsIndex = asset.deposits;
-    // let _claimsIndex = new u64(
-    //   asset.claimsIdx ? asset.claimsIdx : asset.deposits
-    // );
-
+    let _claimsIndex = new u64(
+      asset.claimsIdx ? asset.claimsIdx : asset.deposits
+    );
     console.log("_claimsIndex: ", _claimsIndex.toNumber());
 
     for (let i = 0; i <= count; i++) {
@@ -1747,7 +1752,8 @@ export class VaultClient extends AccountUtils {
     );
     console.log("remainingAccounts: ", remainingAccounts.length);
 
-    if (executeTransaction) {
+    // don't even execute transaction if there are no claims to process
+    if (remainingAccounts.length > 0 && executeTransaction) {
       const tx = await this.vaultProgram.rpc.processClaims({
         accounts: {
           payer: signerInfo.payer,
@@ -2024,6 +2030,13 @@ export class VaultClient extends AccountUtils {
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
     const _vault = await this.fetchVault(vault);
 
+    const lpAmount = await this.fetchTokenBalance(lp, signerInfo.payer);
+    // check is also done on-chain, but we can pre-maturely prevent a failed transaction with this check.
+    if (lpAmount === 0) {
+      throw new Error(
+        `Cannot withdraw without any LP tokens of mint ${lp.toBase58()}`
+      );
+    }
     const sourceLpAccount = await resolveAtaForDeposit(
       lp,
       signerInfo.payer,
@@ -2419,6 +2432,7 @@ export const generatePoolConfigForVault = async (
     poolTokenA.mint.toBase58() === _vault.alpha.mint.toBase58() &&
     poolTokenB.mint.toBase58() === _vault.beta.mint.toBase58()
   ) {
+    console.log("a is alpha, b is beta");
     const vaultTokenA = await resolveAtaForDeposit(
       poolTokenA.mint,
       vault,
@@ -2450,6 +2464,7 @@ export const generatePoolConfigForVault = async (
     poolTokenA.mint.toBase58() === _vault.beta.mint.toBase58() &&
     poolTokenB.mint.toBase58() === _vault.alpha.mint.toBase58()
   ) {
+    console.log("a is beta, b is alpha");
     const vaultTokenA = await resolveAtaForDeposit(
       poolTokenB.mint,
       vault,
@@ -2457,12 +2472,6 @@ export const generatePoolConfigForVault = async (
       client.provider.connection
     );
     instructionData = extendInstructionData(instructionData, vaultTokenA);
-    sideA = {
-      token: poolTokenB,
-      amountDecimal: alpha,
-      source: vaultTokenA.address,
-      dest: poolTokenB.addr,
-    };
 
     const vaultTokenB = await resolveAtaForDeposit(
       poolTokenA.mint,
@@ -2471,11 +2480,20 @@ export const generatePoolConfigForVault = async (
       client.provider.connection
     );
     instructionData = extendInstructionData(instructionData, vaultTokenB);
-    sideB = {
+
+    // everything for pool is A -> A, B -> B // vault is B -> A, A -> B
+    sideA = {
       token: poolTokenA,
       amountDecimal: beta,
       source: vaultTokenB.address,
       dest: poolTokenA.addr,
+    };
+
+    sideB = {
+      token: poolTokenB,
+      amountDecimal: alpha,
+      source: vaultTokenA.address,
+      dest: poolTokenB.addr,
     };
   } else {
     throw new Error("Pool tokens don't match vault tranches");
@@ -2608,212 +2626,6 @@ export const getDoubleDipFarm = (
     return null;
   }
 };
-
-// ===============================================================
-
-// todo
-// export interface OrcaPoolConfig {
-//   tokenA: OrcaPoolToken;
-//   // source/dest not needed in ora since deposit into vault and into orca are separate
-//   sourceA: PublicKey;
-//   // destA: PublicKey;
-//   tokenB: OrcaPoolToken;
-//   sourceB: PublicKey;
-//   // destB: PublicKey;
-//   destLP: PublicKey;
-//   poolTokenMint: PublicKey;
-//   instructions: InstructionData;
-// }
-
-// // todo: in future, maybe take token pair and find pool info?
-// export const getPoolData_legacy = async (
-//   vault: PublicKey,
-//   orcaSwapProgram: PublicKey,
-//   pool: OrcaPool,
-//   poolParams: OrcaPoolParams,
-//   payer: PublicKey,
-//   initialA: number, // non-zero for SOL mints
-//   initialB: number, // non-zero for SOL mints
-//   connection: Connection
-// ): Promise<OrcaPoolConfig> => {
-//   const tokenA = pool.getTokenA();
-//   const tokenB = pool.getTokenB();
-//   const poolTokenMint = pool.getPoolTokenMint();
-
-//   const userTokenA = await resolveAtaForDeposit(
-//     tokenA.mint,
-//     payer,
-//     payer,
-//     connection,
-//     initialA
-//   );
-
-//   const userTokenB = await resolveAtaForDeposit(
-//     tokenB.mint,
-//     payer,
-//     payer,
-//     connection,
-//     initialB
-//   );
-
-//   const vaultTokenA = await resolveAtaForDeposit(
-//     tokenA.mint,
-//     vault,
-//     payer,
-//     connection
-//   );
-
-//   // normal ATA
-//   const vaultTokenB = await resolveAtaForDeposit(
-//     tokenB.mint,
-//     vault,
-//     payer,
-//     connection
-//   );
-
-//   const vaultLp = await resolveAtaForDeposit(
-//     poolTokenMint,
-//     vault,
-//     payer,
-//     connection
-//   );
-
-//   console.log("==========================================");
-//   console.log("orcaSwapProgram: ", orcaSwapProgram.toBase58());
-//   console.log("orcaPool: ", poolParams.address.toBase58());
-//   console.log("orcaAuthority: ", poolParams.authority.toBase58());
-//   console.log("tokenA mint: ", tokenA.mint.toBase58());
-//   console.log("tokenB mint: ", tokenB.mint.toBase58());
-//   console.log("poolTokenMint: ", poolTokenMint.toBase58());
-//   console.log("==========================================");
-//   console.log("userTokenA: ", userTokenA.address.toBase58());
-//   console.log("vaultTokenA: ", vaultTokenA.address.toBase58());
-//   console.log("==========================================");
-//   console.log("userTokenB: ", userTokenB.address.toBase58());
-//   console.log("vaultTokenB: ", vaultTokenB.address.toBase58());
-//   console.log("==========================================");
-//   console.log("poolTokenMint: ", poolTokenMint.toBase58());
-//   console.log("vaultLp: ", vaultLp.address.toBase58());
-//   console.log("==========================================");
-
-//   const instructionData: InstructionData = {
-//     instructions: [
-//       ...userTokenA.instructions,
-//       ...userTokenB.instructions,
-//       ...vaultTokenA.instructions,
-//       ...vaultTokenB.instructions,
-//       ...vaultLp.instructions,
-//     ],
-//     cleanup: [
-//       ...userTokenA.cleanup,
-//       ...userTokenB.cleanup,
-//       ...vaultTokenA.cleanup,
-//       ...vaultTokenB.cleanup,
-//       ...vaultLp.cleanup,
-//     ],
-//     signers: [
-//       ...userTokenA.signers,
-//       ...userTokenB.signers,
-//       ...vaultTokenA.signers,
-//       ...vaultTokenB.signers,
-//       ...vaultLp.signers,
-//     ],
-//   };
-
-//   return {
-//     tokenA,
-//     sourceA: userTokenA.address,
-//     destA: vaultTokenA.address,
-//     tokenB,
-//     sourceB: userTokenB.address,
-//     destB: vaultTokenB.address,
-//     poolTokenMint,
-//     destLP: vaultLp.address,
-//     instructions: instructionData,
-//   } as OrcaPoolConfig;
-// };
-
-// // todo: in future, maybe take token pair and find pool info?
-// export const getPoolData = async (
-//   vault: PublicKey,
-//   orcaSwapProgram: PublicKey,
-//   pool: OrcaPool,
-//   poolParams: OrcaPoolParams,
-//   payer: PublicKey,
-//   initialA: number, // non-zero for SOL mints
-//   initialB: number, // non-zero for SOL mints
-//   connection: Connection
-// ): Promise<OrcaPoolConfig> => {
-//   const tokenA = pool.getTokenA();
-//   const tokenB = pool.getTokenB();
-//   const poolTokenMint = pool.getPoolTokenMint();
-
-//   const vaultTokenA = await resolveAtaForDeposit(
-//     tokenA.mint,
-//     vault,
-//     payer,
-//     connection
-//   );
-
-//   const vaultTokenB = await resolveAtaForDeposit(
-//     tokenB.mint,
-//     vault,
-//     payer,
-//     connection
-//   );
-
-//   // normal ATA
-//   const vaultLp = await resolveAtaForDeposit(
-//     poolTokenMint,
-//     vault,
-//     payer,
-//     connection
-//   );
-
-//   console.log("==========================================");
-//   console.log("orcaSwapProgram: ", orcaSwapProgram.toBase58());
-//   console.log("orcaPool: ", poolParams.address.toBase58());
-//   console.log("orcaAuthority: ", poolParams.authority.toBase58());
-//   console.log("tokenA mint: ", tokenA.mint.toBase58());
-//   console.log("tokenB mint: ", tokenB.mint.toBase58());
-//   console.log("poolTokenMint: ", poolTokenMint.toBase58());
-//   console.log("==========================================");
-//   console.log("vaultTokenA: ", vaultTokenA.address.toBase58());
-//   console.log("==========================================");
-//   console.log("vaultTokenB: ", vaultTokenB.address.toBase58());
-//   console.log("==========================================");
-//   console.log("poolTokenMint: ", poolTokenMint.toBase58());
-//   console.log("vaultLp: ", vaultLp.address.toBase58());
-//   console.log("==========================================");
-
-//   const instructionData: InstructionData = {
-//     instructions: [
-//       ...vaultTokenA.instructions,
-//       ...vaultTokenB.instructions,
-//       ...vaultLp.instructions,
-//     ],
-//     cleanup: [
-//       ...vaultTokenA.cleanup,
-//       ...vaultTokenB.cleanup,
-//       ...vaultLp.cleanup,
-//     ],
-//     signers: [
-//       ...vaultTokenA.signers,
-//       ...vaultTokenB.signers,
-//       ...vaultLp.signers,
-//     ],
-//   };
-
-//   return {
-//     tokenA,
-//     destA: vaultTokenA.address,
-//     tokenB,
-//     destB: vaultTokenB.address,
-//     poolTokenMint,
-//     destLP: vaultLp.address,
-//     instructions: instructionData,
-//   } as OrcaPoolConfig;
-// };
 
 export const extendInstructionData = (
   instructionData: InstructionData,

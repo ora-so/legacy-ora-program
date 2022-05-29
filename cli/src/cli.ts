@@ -40,6 +40,7 @@ import {
   getOrcaPool,
   getAquafarm,
   getDoubleDipFarm,
+  findAssociatedTokenAddress,
 } from "@ora-protocol/sdk";
 
 import {
@@ -63,6 +64,21 @@ import { ZERO_U64 } from "../../sdk/src/common/constant";
 
 program.version("0.0.1");
 log.setLevel("info");
+
+const COIN_GECKO_SYMBOLS = {
+  usdc: "usd-coin",
+  usdt: "tether",
+  zbc: "zebec-protocol",
+};
+
+export const toCoinGeckoNames = (tokens: string[]): string[] => {
+  return tokens.map((token) => {
+    if (token in COIN_GECKO_SYMBOLS) {
+      return COIN_GECKO_SYMBOLS[token];
+    }
+    return token;
+  });
+};
 
 export const DEFAULT_HURDLE_RATE = 1000;
 export const DEFAULT_PERIOD_IN_SECONDS = 1 * 24 * 60 * 60;
@@ -789,6 +805,61 @@ programCommand("withdraw")
 // orca related commands
 // ============================================================================
 
+programCommand("get_invest_estimate_for_pool")
+  .option("-p, --pair <string>", "Orca pool pair (e.g. ORCA_SOL)")
+  .option("-a, --amountA <number>", "adsf")
+  .option("-b, --amountB <number>", "asdf")
+  .action(async (_, cmd) => {
+    const { keypair, env, pair, amountA, amountB } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _amountA = +amountA;
+    const _amountB = +amountB;
+
+    const orca = getOrca(_client.provider.connection, clusterToNetwork(env));
+    const { pool } = getOrcaPool(orca, pair);
+
+    const tokenA = pool.getTokenA();
+    const tokenAName = tokenA.name.toLowerCase();
+    const tokenB = pool.getTokenB();
+    const tokenBName = tokenB.name.toLowerCase();
+
+    const tokenPrices = await fetchTokenPrices([tokenAName, tokenBName]);
+    const tokenAInUsd = tokenPrices.get(tokenAName);
+    const tokenAAsUsd = _amountA * tokenAInUsd;
+
+    const tokenBInUsd = tokenPrices.get(tokenBName);
+    const tokenBAsUsd = _amountB * tokenBInUsd;
+
+    // get min
+    let inputAlpha: number = 0;
+    let inputBeta: number = 0;
+    if (tokenAAsUsd > tokenBAsUsd) {
+      // compute equivalent alpha to match beta
+      inputAlpha = tokenBAsUsd / tokenAInUsd;
+      inputBeta = tokenBAsUsd / tokenBInUsd;
+    } else if (tokenAAsUsd < tokenBAsUsd) {
+      // compute equivalent beta to match alpha
+      inputAlpha = tokenAAsUsd / tokenAInUsd;
+      inputBeta = tokenAAsUsd / tokenBInUsd;
+    } else {
+      inputAlpha = tokenAAsUsd / tokenAInUsd;
+      inputBeta = tokenBAsUsd / tokenBInUsd;
+    }
+
+    console.log("inputAlpha: ", inputAlpha);
+    console.log("inputBeta: ", inputBeta);
+
+    const quote = await pool.getDepositQuote(
+      new Decimal(inputAlpha),
+      new Decimal(inputBeta)
+    );
+    console.log("quote::out => ", quote.minPoolTokenAmountOut.toNumber());
+    console.log("quote::maxAIn => ", quote.maxTokenAIn.toNumber());
+    console.log("quote::maxBIn => ", quote.maxTokenBIn.toNumber());
+  });
+
 programCommand("get_invest_estimate")
   .option("-v, --vault <pubkey>", "Vault pubkey")
   .option("-p, --pair <string>", "Orca pool pair (e.g. ORCA_SOL)")
@@ -809,6 +880,7 @@ programCommand("get_invest_estimate")
     const tokenBName = tokenB.name.toLowerCase();
 
     const tokenPrices = await fetchTokenPrices([tokenAName, tokenBName]);
+    console.log("tokenPrices: ", tokenPrices);
 
     // map tokens to tranches
     const alphaDecimals = (await _client.fetchTokenSupply(__vault.alpha.mint))
@@ -858,27 +930,38 @@ programCommand("get_invest_estimate")
     console.log("inputAlpha: ", inputAlpha);
     console.log("inputBeta: ", inputBeta);
 
-    // const quote = await pool.getDepositQuote(alphaAsDecimal, betaAsDecimal);
-    // console.log("quote::out => ", quote.minPoolTokenAmountOut.toNumber());
-    // console.log("quote::maxAIn => ", quote.maxTokenAIn.toNumber());
-    // console.log("quote::maxBIn => ", quote.maxTokenBIn.toNumber());
+    const quote = await pool.getDepositQuote(
+      new Decimal(inputAlpha),
+      new Decimal(inputBeta)
+    );
+    console.log("quote::out => ", quote.minPoolTokenAmountOut.toNumber());
+    console.log("quote::maxAIn => ", quote.maxTokenAIn.toNumber());
+    console.log("quote::maxBIn => ", quote.maxTokenBIn.toNumber());
   });
 
 export const fetchTokenPrices = async (
   tokens: string[],
   currency: string = "usd"
 ): Promise<Map<string, number>> => {
-  const uri = `https://api.coingecko.com/api/v3/simple/price?ids=${tokens.join(
+  console.log("tokens: ", tokens);
+  // const _tokens = toCoinGeckoNames(tokens);
+  const _tokens = tokens.map((_token) => _token.replace(" ", "-"));
+  console.log("_tokens: ", _tokens);
+
+  const uri = `https://api.coingecko.com/api/v3/simple/price?ids=${_tokens.join(
     ","
   )}&vs_currencies=${currency}`;
 
+  console.log("uri: ", uri);
   const result = await fetch(uri)
     .then((response) => response.json())
     .then((result) => result);
 
   const tokenToPrice = new Map<string, number>();
-  tokens.forEach((token) => {
-    tokenToPrice.set(token, +result[token][currency]);
+
+  // results are in terms of `_tokens`, but caller expects `tokens` naming convention
+  _tokens.forEach((token, idx) => {
+    tokenToPrice.set(tokens[idx], +result[token][currency]);
   });
 
   return tokenToPrice;
@@ -1112,6 +1195,8 @@ programCommand("revert_lp_tokens")
     }
   });
 
+// specifically, for auto-compounding since we are using swapFromFarmVault. maybe we can have a generalized function
+// and instruction that takes in a boolean or something, tellinig ixn who authority is.
 programCommand("swap")
   .option("-v, --vault <pubkey>", "Vault pubkey")
   .option("-osp, --orcaSwapProgram <pubkey>", "Orca Swap Program")
@@ -1313,6 +1398,23 @@ programCommand("mint_to")
     log.info(
       `Minting [${amount}] [${_mint.toBase58()}] with authority [${walletKeyPair.publicKey.toBase58()}]`
     );
+    log.info("===========================================");
+  });
+
+programCommand("get_ata", false)
+  .option("-e, --env <pubkey>", "Environment (doesn't matter)")
+  .option("-o, --owner <pubkey>", "Owner of ATA")
+  .option("-m, --mint <pubkey>", "Mint for ATA")
+  .action(async (_, cmd) => {
+    const { env, owner, mint } = cmd.opts();
+
+    const _owner = new PublicKey(owner);
+    const _mint = new PublicKey(mint);
+
+    const address = await findAssociatedTokenAddress(_owner, _mint);
+
+    log.info("===========================================");
+    console.log("ATA address: ", address.toBase58());
     log.info("===========================================");
   });
 

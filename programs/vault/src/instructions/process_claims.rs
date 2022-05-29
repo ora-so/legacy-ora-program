@@ -189,7 +189,7 @@ pub fn handle<'info>(
 
     msg!("end_idx: {}", end_idx);
 
-    // asset_to_process.update_claims_index(end_idx);
+    asset_to_process.update_claims_index(end_idx);
 
     Ok(())
 }
