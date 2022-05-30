@@ -122,13 +122,16 @@ pub fn handle(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
     burn(ctx.accounts.into_burn_reserve_token_context(), lp_amount)?;
 
     msg!("{:?} received for asset {:?}", asset.received, asset.mint);
+
+    // @dev we cannot use `ctx.accounts.lp.supply` because it's possible not all LP tokens have been minted (during claim instruction).
+    //      instead we can use `vault.invested` since (1) tranche tokens and assets have the same decimals and (2) are minted at a 1-1 rate.
     msg!("ctx.accounts.lp.supply: {}", ctx.accounts.lp.supply);
-    msg!("ctx.accounts.source_lp.amount: {}", ctx.accounts.source_lp.amount);
+    msg!("asset.invested: {}", asset.invested);
 
     let withdrawal_amount = compute_withdrawal_amount(
         asset.received,
-        ctx.accounts.lp.supply,
-        ctx.accounts.source_lp.amount,
+        asset.invested,
+        lp_amount,
         ctx.accounts.lp.decimals
     )?;
 
@@ -155,7 +158,8 @@ pub fn handle(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
 ///
 /// @dev formula is computing NUM_ASSETS_PER_LP * NUM_LP, adjusted for the tokens'
 ///      decimals to maintain precision in calculations. more succintly,
-///      amount = (((received * 10^decimals) / supply) * share) / 10^decimals
+///      amount = (((received * 10^decimals) / supply) * share) / 10^decimals,
+///      where supply = invested = total LP based on amount invested
 ///
 pub fn compute_withdrawal_amount(
     received: u64,

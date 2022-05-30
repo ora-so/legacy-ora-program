@@ -1187,6 +1187,18 @@ export class VaultClient extends AccountUtils {
     console.log("beta: ", beta.toBase58());
     console.log("beta lp: ", betaLp.publicKey.toBase58());
 
+    // don't allow someone to shoot themselves in the foot; move to verify vault create?
+    const now = new Date().getTime();
+    if (vaultConfig.startAt.toNumber() < now) {
+      throw new Error("Cannot create vault with start date in the past");
+    }
+
+    if (alpha.toBase58() === beta.toBase58()) {
+      throw new Error(
+        "alpha and beta tranche assets must have different mints"
+      );
+    }
+
     if (executeTransaction) {
       // `indefinite span` transaction error can happen when using `undefined` instead of `null` for optional types.
       return this.vaultProgram.rpc.initializeVault(

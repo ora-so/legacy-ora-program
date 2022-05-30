@@ -41,6 +41,7 @@ import {
   getAquafarm,
   getDoubleDipFarm,
   findAssociatedTokenAddress,
+  IVault,
 } from "@ora-protocol/sdk";
 
 import {
@@ -573,30 +574,16 @@ programCommand("show_depositors")
     const _mint = new PublicKey(mint);
     const _vault = new PublicKey(vault);
     const __vault = await _client.fetchVault(_vault);
-    const _asset = _client.getAsset(toIVault(__vault), _mint);
-    const numDeposits = _asset.deposits.toNumber();
-    console.log(`numDeposits for ${_mint.toBase58()}: ${numDeposits}`);
 
-    const depositors = new Map<string, number>();
-
-    for (let i = numDeposits; i > 0; i--) {
-      const { addr: receipt } = await _client.generateReceiptAddress(
-        _vault,
-        _mint,
-        toU64(i)
-      );
-
-      const _receipt = await _client.fetchReceipt(receipt);
-
-      const _depositor = _receipt.depositor.toBase58();
-      if (!depositors.has(_depositor)) {
-        depositors.set(_depositor, 0);
-      }
-      depositors.set(_depositor, depositors.get(_depositor) + 1);
-    }
+    const { totalDeposits, depositors } = await getDepositorsForVault(
+      _vault,
+      toIVault(__vault),
+      _mint,
+      _client
+    );
 
     console.log(
-      `Vault [${_vault.toBase58()}] with asset ${_asset.mint.toBase58()} had ${numDeposits} fromm ${
+      `Vault [${_vault.toBase58()}] with asset ${_mint.toBase58()} had ${totalDeposits} fromm ${
         depositors.size
       } unique depositors`
     );
@@ -606,6 +593,40 @@ programCommand("show_depositors")
       console.log(`Depositor ${d[0]} had ${d[1]} deposits`);
     }
   });
+
+export const getDepositorsForVault = async (
+  vaultKey: PublicKey,
+  vault: IVault,
+  mint: PublicKey,
+  client: VaultClient
+): Promise<{
+  totalDeposits: number;
+  depositors: Map<string, number>;
+}> => {
+  const asset = client.getAsset(vault, mint);
+  const numDeposits = asset.deposits.toNumber();
+  const depositors = new Map<string, number>();
+  for (let i = numDeposits; i > 0; i--) {
+    const { addr: receipt } = await client.generateReceiptAddress(
+      vaultKey,
+      mint,
+      toU64(i)
+    );
+
+    const _receipt = await client.fetchReceipt(receipt);
+
+    const _depositor = _receipt.depositor.toBase58();
+    if (!depositors.has(_depositor)) {
+      depositors.set(_depositor, 0);
+    }
+    depositors.set(_depositor, depositors.get(_depositor) + 1);
+  }
+
+  return {
+    totalDeposits: numDeposits,
+    depositors,
+  };
+};
 
 programCommand("show_deposit_history")
   .option(
@@ -619,10 +640,7 @@ programCommand("show_deposit_history")
 
     const walletKeyPair: Keypair = loadWalletKey(keypair);
     const _client = createClient(env, walletKeyPair);
-
     const _vault = new PublicKey(vault);
-    const _depositor = new PublicKey(depositor);
-
     const __vault = await _client.fetchVault(_vault);
 
     let mints = [];
@@ -632,32 +650,53 @@ programCommand("show_deposit_history")
       mints.push(__vault.alpha.mint, __vault.beta.mint);
     }
 
+    console.log("num mints: ", mints.length);
+
     log.info("===========================================");
-    log.info(`Deposit history for ${_depositor.toBase58()}`);
     for (const _mint of mints) {
       const _asset = _client.getAsset(toIVault(__vault), _mint);
       const numDeposits = _asset.deposits.toNumber();
       console.log(`> Num deposits for ${_mint.toBase58()}: ${numDeposits}`);
 
-      const { addr: history, bump } = await _client.generateHistoryAddress(
-        _vault,
-        _mint,
-        _depositor
-      );
+      let depositors = [];
+      if (depositor) {
+        depositors.push(new PublicKey(depositor));
+      } else {
+        const { depositors: _depositors } = await getDepositorsForVault(
+          _vault,
+          toIVault(__vault),
+          _mint,
+          _client
+        );
 
-      try {
-        const _history = await _client.fetchHistory(history);
+        depositors.push(
+          ...Array.from(_depositors.keys()).map((d) => new PublicKey(d))
+        );
+      }
 
-        log.info(`Account: ${history}`);
-        log.info(`Bump: ${bump}`);
-        log.info(`Initialized: ${_history.intialized}`);
-        log.info(`Deposits: ${_history.deposits.toNumber()}`);
-        log.info(`Cumulative: ${_history.cumulative.toNumber()}`);
-        log.info(`Claim: ${_history.claim.toNumber()}`);
-        log.info(`CanClaimTrancheLp: ${_history.canClaimTrancheLp}`);
-        log.info("===========================================");
-      } catch (err: any) {
-        // no-op
+      for (const _depositor of depositors) {
+        log.info(`Deposit history for ${_depositor.toBase58()}`);
+
+        const { addr: history, bump } = await _client.generateHistoryAddress(
+          _vault,
+          _mint,
+          _depositor
+        );
+
+        try {
+          const _history = await _client.fetchHistory(history);
+
+          log.info(`Account: ${history}`);
+          log.info(`Bump: ${bump}`);
+          log.info(`Initialized: ${_history.intialized}`);
+          log.info(`Deposits: ${_history.deposits.toNumber()}`);
+          log.info(`Cumulative: ${_history.cumulative.toNumber()}`);
+          log.info(`Claim: ${_history.claim.toNumber()}`);
+          log.info(`CanClaimTrancheLp: ${_history.canClaimTrancheLp}`);
+          log.info("===========================================");
+        } catch (err: any) {
+          // no-op
+        }
       }
     }
   });
@@ -961,6 +1000,7 @@ export const fetchTokenPrices = async (
 
   // results are in terms of `_tokens`, but caller expects `tokens` naming convention
   _tokens.forEach((token, idx) => {
+    console.log(`price for ${tokens[idx]} => ${result[token][currency]}`);
     tokenToPrice.set(tokens[idx], +result[token][currency]);
   });
 
