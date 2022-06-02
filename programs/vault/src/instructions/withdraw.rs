@@ -93,13 +93,13 @@ pub struct Withdraw<'info> {
 ///
 ///
 pub fn handle(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
-    ctx.accounts.vault.try_transition()?;
-    msg!("ctx.accounts.vault.state: {:?}", ctx.accounts.vault.state);
+    // ctx.accounts.vault.try_transition()?;
     // requires (alpha|beta).received to be > 0
     require!(
         ctx.accounts.vault.state == State::Withdraw,
         ErrorCode::InvalidVaultState
     );
+    msg!("vault state verified");
 
     let asset = ctx.accounts.vault.get_asset(&ctx.accounts.mint.key())?;
     msg!("asset: {:?}", asset);
@@ -111,7 +111,10 @@ pub fn handle(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
 
     // you cannot make a withdrawal without valid LP tokens
     require!(ctx.accounts.lp.key() == asset.lp, ErrorCode::InvalidLpMint);
-    require!(num_lp_tokens_for_payer > 0, ErrorCode::CannotWithdrawWithoutLpTokens);
+    require!(
+        num_lp_tokens_for_payer > 0,
+        ErrorCode::CannotWithdrawWithoutLpTokens
+    );
 
     // default to withdrawing all LP tokens if none are specified
     let lp_amount = match amount {
@@ -132,7 +135,7 @@ pub fn handle(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
         asset.received,
         asset.invested,
         lp_amount,
-        ctx.accounts.lp.decimals
+        ctx.accounts.lp.decimals,
     )?;
 
     let authority = ctx.accounts.authority.key();
@@ -144,7 +147,7 @@ pub fn handle(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
         ctx.accounts.destination_ata.to_account_info(),
         ctx.accounts.vault.to_account_info(),
         &[vault_signer_seeds],
-        withdrawal_amount
+        withdrawal_amount,
     )?;
 
     Ok(())
@@ -165,7 +168,7 @@ pub fn compute_withdrawal_amount(
     received: u64,
     supply: u64,
     share: u64,
-    decimals: u8
+    decimals: u8,
 ) -> OraResult<u64> {
     let received_extended: u128 = received as u128;
 
@@ -178,8 +181,8 @@ pub fn compute_withdrawal_amount(
     msg!("decimal_multiplier: {:?}", decimal_multiplier);
 
     let received_padded: u128 = received_extended
-            .checked_mul(decimal_multiplier)
-            .ok_or_else(math_error!())?;
+        .checked_mul(decimal_multiplier)
+        .ok_or_else(math_error!())?;
 
     msg!("received_padded: {:?}", received_padded);
 
@@ -197,7 +200,7 @@ pub fn compute_withdrawal_amount(
         .checked_div(decimal_multiplier)
         .ok_or_else(math_error!())?;
     msg!("assets_to_withdraw: {:?}", assets_to_withdraw);
-    
+
     Ok(assets_to_withdraw as u64)
 }
 

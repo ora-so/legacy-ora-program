@@ -1188,10 +1188,10 @@ export class VaultClient extends AccountUtils {
     console.log("beta lp: ", betaLp.publicKey.toBase58());
 
     // don't allow someone to shoot themselves in the foot; move to verify vault create?
-    const now = new Date().getTime();
-    if (vaultConfig.startAt.toNumber() < now) {
-      throw new Error("Cannot create vault with start date in the past");
-    }
+    // const now = new Date().getTime();
+    // if (vaultConfig.startAt.toNumber() < now) {
+    //   throw new Error("Cannot create vault with start date in the past");
+    // }
 
     if (alpha.toBase58() === beta.toBase58()) {
       throw new Error(
@@ -1973,6 +1973,7 @@ export class VaultClient extends AccountUtils {
 
     // =====================================================
 
+    // todo: next vault, undo this :nervous:
     // let swapConfig = await computeSwapForVault(
     //   pool,
     //   toIVault(_vault),

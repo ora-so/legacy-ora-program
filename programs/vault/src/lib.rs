@@ -66,6 +66,13 @@ pub mod vault {
     }
 
     #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
+    pub fn transition_vault(ctx: Context<TransitionVault>, target_state: String) -> ProgramResult {
+        instructions::transition_vault::handle(ctx, target_state)?;
+
+        Ok(())
+    }
+
+    #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
     pub fn deposit(
         ctx: Context<Deposit>,
         deposit_index: u64,

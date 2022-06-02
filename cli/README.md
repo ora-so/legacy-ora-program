@@ -243,28 +243,28 @@ ts-node ./src/cli.ts mint --env <env> \
  --keypair <path-to-keypair> \
  --decimals <number>
 
-ts-node ./src/cli.ts ts
+ts-node ./src/cli.ts ts --offset 60
 
 ts-node ./src/cli.ts init_vault --env devnet \
- --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --strategist J49LVNp7kwbeuZfkojcn6hpV1HSwXbg76ur3kh1bPXPM \
+ --keypair ../vaultKeys/vault-orca-sol-4.json \
+ --strategist HKspnaHN2byZtC7VTo9NvugVAvPBYjyqtifT12mTs2qh \
  --strategy G7yWxUweRM1Kz5AxZHspsz8mui4K3un9parQoTa7DkF1 \
  --alpha orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
- --userCapA 1000000 \
- --assetCapA 2000000 \
+ --userCapA 25000 \
+ --assetCapA 500000 \
  --beta So11111111111111111111111111111111111111112 \
- --userCapB 1500000000 \
- --assetCapB 2000000000 \
- --fixedRate 3000 \
- --startAt 1653610072857 \
- --depositPeriod 3600 \
- --livePeriod 7200 \
+ --userCapB 500000000 \
+ --assetCapB 3000000000 \
+ --fixedRate 1250 \
+ --startAt 1654126661356 \
+ --depositPeriod 86400 \
+ --livePeriod 3600 \
  --execute true
 
 <!-- SOL-ORCA, og reversed -->
 
 ts-node ./src/cli.ts init_vault --env devnet \
- --keypair ../vaultKeys/vault-orca-sol-2.json \
+ --keypair ../vaultKeys/vault-orca-sol-3.json \
  --strategist HW2DZGYEzHLcy9DeJB2X32cbDEW641ERYmp95DRksNNa \
  --strategy G7yWxUweRM1Kz5AxZHspsz8mui4K3un9parQoTa7DkF1 \
  --alpha orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
@@ -281,7 +281,7 @@ ts-node ./src/cli.ts init_vault --env devnet \
 
 ts-node ./src/cli.ts show_vault --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
- --vault 3EJy561T7NbCKtRmQZdHhso4MmEcqmorR2oqECb1PL8d
+ --vault 3tFA1oghQFZVPSND8KkQ95HEFEthmP35KPPJmehfW1Ky
 
 ts-node ./src/cli.ts deposit --env devnet \
  --keypair /Users/jacobshiohira/.config/solana/devnet.json \
@@ -491,12 +491,12 @@ spl-token transfer orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
  --owner /Users/jacobshiohira/.config/solana/devnet.json
 
 spl-token transfer orcarKHSqC5CDDsGbho8GKvwExejWHxTqGzXgcewB9L \
- 0.01 \
- 9yQZBpYBAdEMNxnzWwstcu5ZQjwNa1VzsAfPKkTPxnwe \
+ 0.009999 \
+ 6sGxUUo33yMiAoErzJxdDsccr6RioUWUqNV6Kx1A4exA \
  --url devnet \
  --fund-recipient \
- --fee-payer /Users/jacobshiohira/.config/solana/devnet.json \
- --owner /Users/jacobshiohira/.config/solana/devnet.json
+ --fee-payer /Users/jacobshiohira/sooshisan/ora/mintKeys/depositor2.json \
+ --owner /Users/jacobshiohira/sooshisan/ora/mintKeys/depositor2.json
 
 spl-token wrap 1
 
@@ -505,5 +505,15 @@ spl-token transfer So11111111111111111111111111111111111111112 \
  GcbhaX5QUY3KtpTRRtB3cVxk1UeEL4iFTBtkVsX6T25c \
  --url devnet \
  --fund-recipient \
- --fee-payer /Users/jacobshiohira/.config/solana/devnet.json \
- --owner /Users/jacobshiohira/.config/solana/devnet.json
+ --fee-payer /Users/jacobshiohira/sooshisan/ora/mintKeys/depositor1.json \
+ --owner /Users/jacobshiohira/sooshisan/ora/mintKeys/depositor1.json
+
+ts-node ./src/cli.ts show_depositors --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault EpnDQYwSV1KZdja3xoWjzEvPjMW51sHqmpF5syzEX7Td \
+ --mint So11111111111111111111111111111111111111112
+
+ts-node ./src/cli.ts show_deposit_history --env devnet \
+ --keypair /Users/jacobshiohira/.config/solana/devnet.json \
+ --vault EpnDQYwSV1KZdja3xoWjzEvPjMW51sHqmpF5syzEX7Td \
+ --mint So11111111111111111111111111111111111111112

@@ -57,11 +57,12 @@ pub fn handle<'info, T: Redeem<'info> + HasVault>(
     min_token_b: u64,
     swap_config: Option<SwapConfig>,
 ) -> ProgramResult {
-    ctx.accounts.vault_mut().try_transition()?;
+    // ctx.accounts.vault_mut().try_transition()?;
     require!(
         ctx.accounts.vault().state() == State::Redeem,
         ErrorCode::InvalidVaultState
     );
+    msg!("vault state verified");
 
     // burn LP for underlying assets in downstream protocol
     ctx.accounts.redeem(min_token_a, min_token_b)?;

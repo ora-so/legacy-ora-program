@@ -80,10 +80,7 @@ impl Asset {
         Ok(())
     }
 
-    pub fn verify_invested_amount(
-        &self,
-        target: u64,
-    ) -> std::result::Result<(), ProgramError> {
+    pub fn verify_invested_amount(&self, target: u64) -> std::result::Result<(), ProgramError> {
         // lastly, verify that the target amount is under the asset cap
         match self.asset_cap {
             Some(asset_cap) => {
@@ -94,17 +91,14 @@ impl Asset {
         }
     }
 
-    pub fn update_with_investment(
-        &mut self,
-        invested_amount: u64,
-    ) -> ProgramResult {
+    pub fn update_with_investment(&mut self, invested_amount: u64) -> ProgramResult {
         self.verify_invested_amount(invested_amount)?;
 
         self.add_investment(invested_amount)?;
         self.add_excess(
             self.deposited
                 .checked_sub(invested_amount)
-                .ok_or_else(math_error!())?
+                .ok_or_else(math_error!())?,
         )?;
 
         Ok(())
@@ -117,15 +111,31 @@ impl Asset {
     }
 
     pub fn add_receipt(&mut self, amount: u64) -> Result<(), ProgramError> {
-        self.received = self.received.checked_add(amount).ok_or_else(math_error!())?;
-        msg!("{:?} received amount, plus {:?} now = {:?}", self.mint, amount, self.received);
+        self.received = self
+            .received
+            .checked_add(amount)
+            .ok_or_else(math_error!())?;
+        msg!(
+            "{:?} received amount, plus {:?} now = {:?}",
+            self.mint,
+            amount,
+            self.received
+        );
 
         Ok(())
     }
 
     pub fn sub_receipt(&mut self, amount: u64) -> Result<(), ProgramError> {
-        self.received = self.received.checked_sub(amount).ok_or_else(math_error!())?;
-        msg!("{:?} received amount, minus {:?} now = {:?}", self.mint, amount, self.received);
+        self.received = self
+            .received
+            .checked_sub(amount)
+            .ok_or_else(math_error!())?;
+        msg!(
+            "{:?} received amount, minus {:?} now = {:?}",
+            self.mint,
+            amount,
+            self.received
+        );
 
         Ok(())
     }
@@ -133,11 +143,11 @@ impl Asset {
     pub fn finalize_claims(&mut self) {
         self.claims_processed = true;
     }
-    
+
     pub fn claims_already_processed(&self) -> bool {
         return self.claims_processed;
     }
-    
+
     pub fn update_claims_index(&mut self, index: u64) {
         self.claims_idx = Some(index);
     }

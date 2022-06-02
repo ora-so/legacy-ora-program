@@ -11,7 +11,7 @@ pub fn handle<'info, T: Swapper<'info> + HasVault>(
     amount_in: u64,
     min_amount_out: u64,
 ) -> ProgramResult {
-    ctx.accounts.vault_mut().try_transition()?;
+    // ctx.accounts.vault_mut().try_transition()?;
     require!(
         ctx.accounts.vault().can_perform_swap(),
         ErrorCode::InvalidVaultState

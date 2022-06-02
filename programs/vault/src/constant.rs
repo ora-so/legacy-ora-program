@@ -11,3 +11,10 @@ pub const HISTORY_SEED: &str = "history";
 
 pub const SOL_PUBKEY: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
 pub const SOL_DECIMALS: u8 = 9;
+
+// vault states
+pub const INACTIVE_STATE: &str = "inactive";
+pub const DEPOSIT_STATE: &str = "deposit";
+pub const LIVE_STATE: &str = "live";
+pub const REDEEM_STATE: &str = "redeem";
+pub const WITHDRAW_STATE: &str = "withdraw";

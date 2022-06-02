@@ -13,7 +13,6 @@ pub fn handle<'info, T: Converter<'info> + HasVault>(
     bump: u8,
     amount: Option<u64>,
 ) -> ProgramResult {
-    ctx.accounts.vault_mut().try_transition()?;
     require!(
         ctx.accounts.vault().state() == State::Live,
         ErrorCode::InvalidVaultState

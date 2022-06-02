@@ -1,4 +1,9 @@
-use crate::{error::ErrorCode, state::asset::Asset, util::get_current_timestamp};
+use crate::{
+    constant::{DEPOSIT_STATE, INACTIVE_STATE, LIVE_STATE, REDEEM_STATE, WITHDRAW_STATE},
+    error::ErrorCode,
+    state::asset::Asset,
+    util::get_current_timestamp,
+};
 use anchor_lang::prelude::*;
 use std::result::Result;
 
@@ -117,7 +122,7 @@ impl Vault {
         self.strategist = strategist;
     }
 
-    pub fn has_deposits(&self) -> bool {
+    pub fn has_dual_deposits(&self) -> bool {
         return self.alpha.has_deposits() && self.beta.has_deposits();
     }
 
@@ -130,7 +135,12 @@ impl Vault {
         return self.state == State::Redeem && (self.alpha.received > 0 || self.beta.received > 0);
     }
 
-    pub fn transition(&mut self) -> ProgramResult {
+    // @dev: this method of transition relies on a timestamp sourced on-chain. given the possibility that cluster
+    //       time can drift + the lack of oracles providing timestamps, we will move to a permissioned transition for
+    //       model for now.
+    //
+    // @dev: do not use for now
+    pub fn _transition(&mut self) -> ProgramResult {
         let timestamp = get_current_timestamp()?;
 
         // first, attempt time-based transitions. then, optionally
@@ -152,10 +162,28 @@ impl Vault {
         Ok(())
     }
 
+    // we allow non-linear transitions because `transition` is a permmissioned instruction
+    pub fn transition(&mut self, target: String) -> ProgramResult {
+        let _target = target.trim().to_lowercase();
+
+        match &_target as &str {
+            INACTIVE_STATE => self.state = State::Inactive,
+            DEPOSIT_STATE => self.state = State::Deposit,
+            LIVE_STATE => self.state = State::Live,
+            REDEEM_STATE => self.state = State::Redeem,
+            WITHDRAW_STATE => self.state = State::Withdraw,
+            _ => return Err(ErrorCode::MissingTransitionAtTimeForState.into()),
+        }
+
+        Ok(())
+    }
+
     // allow vault to attempt transition if possible. this can help prevent an async
     // instruction invocation to transition vault state.
-    pub fn try_transition(&mut self) -> ProgramResult {
-        match self.transition() {
+    //
+    // @dev: do not use for now
+    pub fn _try_transition(&mut self) -> ProgramResult {
+        match self._transition() {
             Ok(_) | Err(_) => Ok(()),
         }
     }
@@ -201,7 +229,7 @@ impl Vault {
     }
 
     pub fn in_claimable_state(&self, asset: &Asset) -> bool {
-        return  asset.claims_already_processed()
+        return asset.claims_already_processed()
             && self.state != State::Deposit
             && self.state != State::Inactive;
     }
