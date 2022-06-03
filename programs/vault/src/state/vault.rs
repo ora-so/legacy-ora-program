@@ -2,7 +2,6 @@ use crate::{
     constant::{DEPOSIT_STATE, INACTIVE_STATE, LIVE_STATE, REDEEM_STATE, WITHDRAW_STATE},
     error::ErrorCode,
     state::asset::Asset,
-    util::get_current_timestamp,
 };
 use anchor_lang::prelude::*;
 use std::result::Result;
@@ -33,8 +32,9 @@ pub struct VaultConfig {
     pub beta: AssetConfig,
     pub fixed_rate: u16,
     pub start_at: u64,
-    pub invest_at: u64,
-    pub redeem_at: u64,
+    // duration for which the vault will be in their respective states
+    pub deposit_duration: u64,
+    pub invest_duration: u64,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq)]
@@ -51,8 +51,6 @@ impl Default for State {
         State::Inactive
     }
 }
-
-// todo: on vault, have function that takes in source, dest atas and return wehther it's alpha / beta
 
 #[account]
 #[derive(Debug, Default, PartialEq)]
@@ -73,12 +71,18 @@ pub struct Vault {
     pub fixed_rate: u16,
     /// current state of vault
     pub state: State,
-    /// timestamp when the vault begins accepting deposits
+    /// timestamp at which the vault should start accepting deposits
     pub start_at: u64,
-    /// timestamp when investors can no longer move funds, strategist can invest
-    pub invest_at: u64,
-    /// timestamp when strategist can redeem LP tokens for liquidity, investors can withdraw
-    pub redeem_at: u64,
+    /// timestamp at which the vault actually transitioned to the deposit state
+    pub started_at: Option<u64>,
+    /// duration of time for which the vault is accepting deposits
+    pub deposit_duration: u64,
+    /// timestamp at which strategist actually transitioned to the live state
+    pub invested_at: Option<u64>,
+    /// duration of time for which the vault will invest funds
+    pub invest_duration: u64,
+    /// timestamp at which strategist actually transitioned to the redeem state
+    pub redeemed_at: Option<u64>,
 
     /// proxy account that will hold all LP tokens for the vault
     /// since interactions require the account to carry 0 data.
@@ -107,8 +111,11 @@ impl Vault {
         self.strategist = config.strategist;
         self.fixed_rate = config.fixed_rate;
         self.start_at = config.start_at;
-        self.invest_at = config.invest_at;
-        self.redeem_at = config.redeem_at;
+        self.started_at = None;
+        self.deposit_duration = config.deposit_duration;
+        self.invested_at = None;
+        self.invest_duration = config.invest_duration;
+        self.redeemed_at = None;
         self.state = State::Inactive;
 
         self.farm_vault = None;
@@ -130,47 +137,34 @@ impl Vault {
         return self.state;
     }
 
-    pub fn can_disperse_funds(&mut self) -> bool {
+    pub fn can_disperse_funds(&self) -> bool {
         // vault state is in redeem state and funds have been received
         return self.state == State::Redeem && (self.alpha.received > 0 || self.beta.received > 0);
     }
 
-    // @dev: this method of transition relies on a timestamp sourced on-chain. given the possibility that cluster
-    //       time can drift + the lack of oracles providing timestamps, we will move to a permissioned transition for
-    //       model for now.
-    //
-    // @dev: do not use for now
-    pub fn _transition(&mut self) -> ProgramResult {
-        let timestamp = get_current_timestamp()?;
-
-        // first, attempt time-based transitions. then, optionally
-        // update a non-time-based transition if needed.
-        if timestamp >= self.redeem_at {
-            self.state = State::Redeem
-        } else if timestamp >= self.invest_at {
-            self.state = State::Live
-        } else if timestamp >= self.start_at {
-            self.state = State::Deposit
-        } else {
-            return Err(ErrorCode::MissingTransitionAtTimeForState.into());
-        }
-
-        if self.can_disperse_funds() {
-            self.state = State::Withdraw
-        }
-
-        Ok(())
-    }
-
     // we allow non-linear transitions because `transition` is a permmissioned instruction
-    pub fn transition(&mut self, target: String) -> ProgramResult {
+    //
+    // @dev: previously, we allowed linear state machine transition based mostly on timestamps, but
+    //       we pivoted to this approach givent the possibile cluster time drift + the lack of oracles
+    //       providing timestamps
+    pub fn transition(&mut self, target: String, ts: u64) -> ProgramResult {
         let _target = target.trim().to_lowercase();
 
+        // todo: do we enforce duration here?
         match &_target as &str {
             INACTIVE_STATE => self.state = State::Inactive,
-            DEPOSIT_STATE => self.state = State::Deposit,
-            LIVE_STATE => self.state = State::Live,
-            REDEEM_STATE => self.state = State::Redeem,
+            DEPOSIT_STATE => {
+                self.state = State::Deposit;
+                self.started_at = Some(ts);
+            }
+            LIVE_STATE => {
+                self.state = State::Live;
+                self.invested_at = Some(ts);
+            }
+            REDEEM_STATE => {
+                self.state = State::Redeem;
+                self.redeemed_at = Some(ts);
+            }
             WITHDRAW_STATE => self.state = State::Withdraw,
             _ => return Err(ErrorCode::MissingTransitionAtTimeForState.into()),
         }
@@ -178,13 +172,18 @@ impl Vault {
         Ok(())
     }
 
-    // allow vault to attempt transition if possible. this can help prevent an async
-    // instruction invocation to transition vault state.
-    //
-    // @dev: do not use for now
-    pub fn _try_transition(&mut self) -> ProgramResult {
-        match self._transition() {
-            Ok(_) | Err(_) => Ok(()),
+    // allow vault to transition from -> into specific states such that the authority doesn't have to explicitly
+    // transition vault state. this approach is only applicable for the following states, not based on timestamp.
+    pub fn try_transition(&mut self) -> ProgramResult {
+        match self.state {
+            State::Redeem => {
+                if self.can_disperse_funds() {
+                    self.state = State::Withdraw;
+                }
+
+                Ok(())
+            }
+            _ => Ok(()),
         }
     }
 

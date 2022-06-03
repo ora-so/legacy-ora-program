@@ -34,7 +34,7 @@ pub fn get_spl_mint<'a>(token_account: &AccountInfo<'a>) -> OraResult<Pubkey> {
     Ok(get_spl_account(&token_account)?.mint)
 }
 
-pub fn get_current_timestamp() -> Result<u64, ProgramError> {
+pub fn _get_current_timestamp() -> Result<u64, ProgramError> {
     // i64 -> u64 ok to unwrap
     Ok(clock::Clock::get()?.unix_timestamp.try_into().unwrap())
 }
@@ -426,7 +426,7 @@ pub fn spl_token_transfer<'info>(
         Transfer {
             from: source,
             to: destination,
-            authority: transfer_authority
+            authority: transfer_authority,
         },
     );
 
@@ -470,14 +470,7 @@ pub fn transfer_tokens<'info>(
     } else {
         // use token transfer, decide whether authority is vault or payer
 
-        spl_token_transfer(
-            token_program,
-            source,
-            dest,
-            authority,
-            signer_seeds,
-            amount
-        )?;
+        spl_token_transfer(token_program, source, dest, authority, signer_seeds, amount)?;
     }
 
     Ok(())

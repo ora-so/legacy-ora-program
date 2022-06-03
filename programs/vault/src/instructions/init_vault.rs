@@ -15,6 +15,13 @@ pub struct InitializeVault<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
+    // additional signer makes instruction permissioned for the time being
+    #[account(
+        mut,
+        constraint = global_protocol_state.authority == gps_authority.key(),
+    )]
+    pub gps_authority: Signer<'info>,
+
     #[account(
         seeds = [GLOBAL_STATE_SEED.as_bytes()],
         bump,

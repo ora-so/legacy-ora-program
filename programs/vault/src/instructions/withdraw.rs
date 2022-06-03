@@ -93,7 +93,9 @@ pub struct Withdraw<'info> {
 ///
 ///
 pub fn handle(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
-    // ctx.accounts.vault.try_transition()?;
+    ctx.accounts.vault.try_transition()?;
+    msg!("vault state: {:?}", ctx.accounts.vault.state);
+
     // requires (alpha|beta).received to be > 0
     require!(
         ctx.accounts.vault.state == State::Withdraw,

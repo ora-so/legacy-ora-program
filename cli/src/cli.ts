@@ -311,6 +311,10 @@ programCommand("show_orca_strategy")
 
 programCommand("init_vault")
   .option(
+    "-gpskp, --gpsAuthorityKp <path>",
+    "Solana wallet location of GPS authority"
+  )
+  .option(
     "-st, --strategist <pubkey>",
     "Pubkey of the strategist that has rights to invest and redeem funds"
   )
@@ -357,6 +361,7 @@ programCommand("init_vault")
     const {
       keypair,
       env,
+      gpsAuthorityKp,
       strategist,
       strategy,
       alpha,
@@ -373,6 +378,8 @@ programCommand("init_vault")
     } = cmd.opts();
 
     const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _gpsAuthorityKp: Keypair = loadWalletKey(gpsAuthorityKp);
+
     const _client = createClient(env, walletKeyPair);
     const _execute = execute === "true" ? true : false;
 
@@ -384,14 +391,6 @@ programCommand("init_vault")
     const _beta = new PublicKey(beta);
     const _fixedRate = getOrDefault(+fixedRate, DEFAULT_HURDLE_RATE);
     const _startAt = new Date(getOrDefault(+startAt, new Date().getTime()));
-    const _investAt = addSeconds(
-      _startAt,
-      getOrDefault(+depositPeriod, DEFAULT_PERIOD_IN_SECONDS)
-    );
-    const _redeemAt = addSeconds(
-      _investAt,
-      getOrDefault(+livePeriod, DEFAULT_PERIOD_IN_SECONDS)
-    );
 
     const _assetCapA: u64 | null = assetCapA ? new u64(+assetCapA) : null;
     const _userCapA: u64 | null = userCapA ? new u64(+userCapA) : null;
@@ -414,17 +413,26 @@ programCommand("init_vault")
       },
       fixedRate: _fixedRate,
       startAt: new u64(getTimestamp(_startAt)),
-      investAt: new u64(getTimestamp(_investAt)),
-      redeemAt: new u64(getTimestamp(_redeemAt)),
+      depositDuration: new u64(
+        getOrDefault(+depositPeriod, DEFAULT_PERIOD_IN_SECONDS)
+      ),
+      investDuration: new u64(
+        getOrDefault(+livePeriod, DEFAULT_PERIOD_IN_SECONDS)
+      ),
     };
 
-    await _client.initializeVault(vaultConfig, walletKeyPair, _execute);
+    const tx = await _client.initializeVault(
+      vaultConfig,
+      walletKeyPair,
+      _gpsAuthorityKp,
+      _execute
+    );
 
     const { addr } = await _client.generateVaultAddress(_authority);
 
     log.info("===========================================");
     log.info(
-      `✅ Created vault with key [${addr.toBase58()}]. Run [show_vault] command to see other vault data.`
+      `✅ Created vault with key [${addr.toBase58()}] in TX [${tx}]. Run [show_vault] command to see other vault data.`
     );
     log.info("===========================================");
   });
@@ -515,9 +523,49 @@ programCommand("show_vault")
     log.info("Strategist: ", _vault.strategist.toBase58());
     log.info("Fixed rate: ", _vault.fixedRate);
     log.info("State: ", _vault.state);
-    log.info("Vault start at: ", _vault.startAt.toNumber());
-    log.info("Vault invest at: ", _vault.investAt.toNumber());
-    log.info("Vault redeem at: ", _vault.redeemAt.toNumber());
+    log.info("Vault projected start at: ", _vault.startAt.toNumber());
+
+    log.info(
+      "Vault actual started at: ",
+      _vault.startedAt ? _vault.startedAt.toNumber() : "Not started yet"
+    );
+    log.info("Vault deposit period (sec): ", _vault.depositDuration.toNumber());
+    log.info(
+      "Vault actual invested at: ",
+      _vault.investedAt ? _vault.investedAt.toNumber() : "Not invested yet"
+    );
+    log.info(
+      "Vault investment period (sec): ",
+      _vault.investDuration.toNumber()
+    );
+    log.info(
+      "Vault actual redeemed at: ",
+      _vault.redeemedAt ? _vault.redeemedAt.toNumber() : "Not redeemed yet"
+    );
+  });
+
+programCommand("transition_vault")
+  .option("-v, --vault <pubkey>", "Vault address to display.")
+  .option("-t, --target <string>", "Target state to which we should transition")
+  .option("-e, --execute <boolean>", "Execute transaction or not")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, target, execute } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _vault = new PublicKey(vault);
+    const _execute = execute === "true" ? true : false;
+
+    const tx = await _client.transitionVault(
+      _vault,
+      target,
+      walletKeyPair,
+      _execute
+    );
+
+    log.info("===========================================");
+    log.info(`✅ Vault transitioned to state ${target} with TX [${tx}].`);
+    log.info("===========================================");
   });
 
 programCommand("show_receipts")

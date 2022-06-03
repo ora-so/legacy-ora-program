@@ -71,13 +71,18 @@ impl Asset {
         }
     }
 
-    pub fn add_investment(&mut self, invested: u64) -> Result<(), ProgramError> {
-        self.invested = self
-            .invested
-            .checked_add(invested)
-            .ok_or_else(math_error!())?;
+    pub fn set_investment(&mut self, invested: u64) -> Result<(), ProgramError> {
+        self.invested = invested;
 
         Ok(())
+    }
+
+    pub fn add_investment(&mut self, invested: u64) -> Result<(), ProgramError> {
+        self.set_investment(
+            self.invested
+                .checked_add(invested)
+                .ok_or_else(math_error!())?,
+        )
     }
 
     pub fn verify_invested_amount(&self, target: u64) -> std::result::Result<(), ProgramError> {
@@ -91,23 +96,42 @@ impl Asset {
         }
     }
 
-    pub fn update_with_investment(&mut self, invested_amount: u64) -> ProgramResult {
-        self.verify_invested_amount(invested_amount)?;
-
-        self.add_investment(invested_amount)?;
-        self.add_excess(
+    pub fn _set_initial_investment(&mut self, amount: u64) -> ProgramResult {
+        self.set_investment(amount)?;
+        self.verify_invested_amount(self.invested)?;
+        self.set_excess(
             self.deposited
-                .checked_sub(invested_amount)
+                .checked_sub(amount)
                 .ok_or_else(math_error!())?,
         )?;
 
         Ok(())
     }
 
-    pub fn add_excess(&mut self, excess: u64) -> Result<(), ProgramError> {
-        self.excess = self.excess.checked_add(excess).ok_or_else(math_error!())?;
+    // for any follow-on investments, we have slightly different logic. we want to make sure the investment
+    // is (1) under the asset cap and (2) exclude adding additional value to excess.
+    pub fn _make_additional_investment(&mut self, amount: u64) -> ProgramResult {
+        self.add_investment(amount)?;
+        self.verify_invested_amount(self.invested)?;
 
         Ok(())
+    }
+
+    pub fn make_investment(&mut self, amount: u64) -> ProgramResult {
+        match self.invested {
+            0 => self._set_initial_investment(amount),
+            _ => self._make_additional_investment(amount),
+        }
+    }
+
+    pub fn set_excess(&mut self, excess: u64) -> Result<(), ProgramError> {
+        self.excess = excess;
+
+        Ok(())
+    }
+
+    pub fn add_excess(&mut self, excess: u64) -> Result<(), ProgramError> {
+        self.set_excess(self.excess.checked_add(excess).ok_or_else(math_error!())?)
     }
 
     pub fn add_receipt(&mut self, amount: u64) -> Result<(), ProgramError> {

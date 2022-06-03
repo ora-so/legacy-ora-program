@@ -57,12 +57,16 @@ pub fn handle<'info, T: Redeem<'info> + HasVault>(
     min_token_b: u64,
     swap_config: Option<SwapConfig>,
 ) -> ProgramResult {
-    // ctx.accounts.vault_mut().try_transition()?;
-    require!(
-        ctx.accounts.vault().state() == State::Redeem,
-        ErrorCode::InvalidVaultState
-    );
+    let vault = ctx.accounts.vault();
+
+    require!(vault.state() == State::Redeem, ErrorCode::InvalidVaultState);
     msg!("vault state verified");
+
+    // if no assets were invested, return early. received initialized at 0.
+    if vault.alpha.invested == 0 && vault.beta.invested == 0 {
+        msg!("no funds invested; returning early");
+        return Ok(());
+    }
 
     // burn LP for underlying assets in downstream protocol
     ctx.accounts.redeem(min_token_a, min_token_b)?;

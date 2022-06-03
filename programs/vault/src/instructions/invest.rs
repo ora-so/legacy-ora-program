@@ -20,19 +20,21 @@ pub fn handle<'info, T: Invest<'info> + HasVault>(
     investable_b: u64,
     min_tokens_back: u64,
 ) -> ProgramResult {
-    // ctx.accounts.vault_mut().try_transition()?;
     require!(
         ctx.accounts.vault().state() == State::Live,
         ErrorCode::InvalidVaultState
     );
     msg!("vault state verified");
 
-    // if vault has lop-sided deposits, mark invested = 0 so that we can process claims correctly
+    // no matter how many times the authority calls this instruction when the vault has 1 tranche with 0 deposits,
+    // we will set invested = 0 and excess = deposited on both sides so that we can process claims correctly.
+    // this will then allow people to withdraw funds.
     if !ctx.accounts.vault().has_dual_deposits() {
+        msg!("1 tranche has no deposits");
+
         let mutable_vault = ctx.accounts.vault_mut();
-        // update investment to 0
-        mutable_vault.get_alpha_mut()?.update_with_investment(0)?;
-        mutable_vault.get_beta_mut()?.update_with_investment(0)?;
+        mutable_vault.get_alpha_mut()?.make_investment(0)?;
+        mutable_vault.get_beta_mut()?.make_investment(0)?;
 
         return Ok(());
     }

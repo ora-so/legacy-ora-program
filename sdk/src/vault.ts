@@ -1,10 +1,6 @@
 import * as anchor from "@project-serum/anchor";
 import { Program, Provider, Idl, Wallet, BN } from "@project-serum/anchor";
-import {
-  StableSwap,
-  SWAP_PROGRAM_ID,
-  // ZERO_FEES,
-} from "@saberhq/stableswap-sdk";
+import { StableSwap, SWAP_PROGRAM_ID } from "@saberhq/stableswap-sdk";
 import {
   AccountLayout,
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -61,6 +57,7 @@ import {
   getSignersFromPayer,
   flattenValidInstructions,
   toIVault,
+  getTimestamp,
 } from "./common/util";
 import { Vault } from "./types/vault";
 import { getOrCreateATA } from "./common";
@@ -80,6 +77,19 @@ import {
 import { OrcaFarmParams } from "@orca-so/sdk/dist/model/orca/farm/farm-types";
 import { OrcaPoolParams } from "@orca-so/sdk/dist/model/orca/pool/pool-types";
 import { Orca } from "@orca-so/sdk/dist/public/main/types";
+
+export const INACTIVE_STATE = "inactive";
+export const DEPOSIT_STATE = "deposit";
+export const LIVE_STATE = "live";
+export const REDEEM_STATE = "redeem";
+export const WITHDRAW_STATE = "withdraw";
+
+type TargetVaultState =
+  | typeof INACTIVE_STATE
+  | typeof DEPOSIT_STATE
+  | typeof LIVE_STATE
+  | typeof REDEEM_STATE
+  | typeof WITHDRAW_STATE;
 
 export const fixedRateToDecimal = (n: number) => n / 10_000;
 
@@ -1151,9 +1161,11 @@ export class VaultClient extends AccountUtils {
   initializeVault = async (
     vaultConfig: VaultConfig,
     payer: PublicKey | Keypair,
+    gpsAuthority: PublicKey | Keypair,
     executeTransaction: boolean = true
   ) => {
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
+    const gpsAuthorityInfo: SignerInfo = getSignersFromPayer(gpsAuthority);
 
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
     const { addr: vault, bump } = await this.generateVaultAddress(
@@ -1217,12 +1229,14 @@ export class VaultClient extends AccountUtils {
           },
           fixedRate: vaultConfig.fixedRate,
           startAt: vaultConfig.startAt,
-          investAt: vaultConfig.investAt,
-          redeemAt: vaultConfig.redeemAt,
+          // removed investAt and redeemAt
+          depositDuration: vaultConfig.depositDuration,
+          investDuration: vaultConfig.investDuration,
         } as any,
         {
           accounts: {
             authority: signerInfo.payer,
+            gpsAuthority: gpsAuthorityInfo.payer,
             globalProtocolState: globalStateAddr,
             vault,
             alphaMint: alpha,
@@ -1251,9 +1265,42 @@ export class VaultClient extends AccountUtils {
             ...vaultLpA.instructions,
             ...vaultLpB.instructions,
           ],
-          signers: [alphaLp, betaLp, ...signerInfo.signers],
+          signers: [
+            alphaLp,
+            betaLp,
+            ...signerInfo.signers,
+            ...gpsAuthorityInfo.signers,
+          ],
         }
       );
+    }
+    return "nan";
+  };
+
+  transitionVault = async (
+    vault: PublicKey,
+    target: TargetVaultState,
+    payer: PublicKey | Keypair,
+    executeTransaction: boolean = true
+  ) => {
+    const signerInfo: SignerInfo = getSignersFromPayer(payer);
+    const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
+    const timestamp = new u64(getTimestamp(new Date()));
+
+    console.log("vault: ", vault.toBase58());
+    console.log("globalStateAddr: ", globalStateAddr.toBase58());
+    console.log("target: ", target);
+    console.log("timestamp: ", timestamp.toNumber());
+
+    if (executeTransaction) {
+      return this.vaultProgram.rpc.transitionVault(target, timestamp as any, {
+        accounts: {
+          authority: signerInfo.payer,
+          globalProtocolState: globalStateAddr,
+          vault,
+        },
+        signers: signerInfo.signers,
+      });
     }
     return "nan";
   };
@@ -1687,11 +1734,6 @@ export class VaultClient extends AccountUtils {
   ): Promise<AccountMeta[]> => {
     const asset = this.getAsset(vault, mint);
 
-    if (asset.excess.toNumber() === 0)
-      throw new Error(
-        "No excess defined. Can only process claims after vault funds are invested."
-      );
-
     const remainingAccounts: AccountMeta[] = [];
     if (asset.claimsProcessed) return remainingAccounts;
 
@@ -1764,8 +1806,9 @@ export class VaultClient extends AccountUtils {
     );
     console.log("remainingAccounts: ", remainingAccounts.length);
 
-    // don't even execute transaction if there are no claims to process
-    if (remainingAccounts.length > 0 && executeTransaction) {
+    // note: we still need to submit the transaction when there are no claims to process
+    // because we need to update state on-chain.
+    if (executeTransaction) {
       const tx = await this.vaultProgram.rpc.processClaims({
         accounts: {
           payer: signerInfo.payer,

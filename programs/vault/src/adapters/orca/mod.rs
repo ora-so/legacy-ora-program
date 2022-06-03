@@ -1,6 +1,7 @@
 pub mod external;
 
 // todo: figure out how to get rid of the double error code import (right now * is due to saber's unwrap_or_err method)
+use crate::error::{ErrorCode, OraResult};
 use crate::{
     constant::{FARM_VAULT_SEED, GLOBAL_STATE_SEED, STRATEGY_SEED, VAULT_SEED},
     convert_lp::Converter,
@@ -8,12 +9,12 @@ use crate::{
     harvest::Harvester,
     init_strategy::StrategyInitializer,
     init_user_farm::FarmInitializer,
-    invest::{Invest},
+    invest::Invest,
     redeem::{Redeem, SwapConfig},
     revert_lp::Reverter,
     state::{GlobalProtocolState, HasVault, StrategyFlag, Vault},
     swap::Swapper,
-    util::{create_or_allocate_account_raw, get_spl_amount, transfer_tokens, get_spl_mint},
+    util::{create_or_allocate_account_raw, get_spl_amount, get_spl_mint, transfer_tokens},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::TokenAccount;
@@ -22,7 +23,6 @@ use external::*;
 use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
 use vipers::unwrap_or_err;
-use crate::error::{OraResult, ErrorCode};
 
 pub struct PoolEndpoints<'info> {
     /// CHECK: temp struct we build ourselves
@@ -38,7 +38,7 @@ pub fn into_pool_endpoints<'info>(
     source_token_a_account_info: AccountInfo<'info>,
     from_token_a_account_info: AccountInfo<'info>,
     source_token_b_account_info: AccountInfo<'info>,
-    from_token_b_account_info: AccountInfo<'info>
+    from_token_b_account_info: AccountInfo<'info>,
 ) -> OraResult<(PoolEndpoints<'info>, PoolEndpoints<'info>)> {
     let alpha_asset: PoolEndpoints;
     let beta_asset: PoolEndpoints;
@@ -52,8 +52,7 @@ pub fn into_pool_endpoints<'info>(
     msg!("token_b_mint: {}", token_b_mint);
 
     // todo: migrate to match arm
-    if token_a_mint == *alpha_mint && token_b_mint == *beta_mint
-    {
+    if token_a_mint == *alpha_mint && token_b_mint == *beta_mint {
         msg!("a is alpha, b is beta");
 
         alpha_asset = PoolEndpoints {
@@ -65,8 +64,7 @@ pub fn into_pool_endpoints<'info>(
             user: source_token_b_account_info,
             pool: from_token_b_account_info,
         };
-    } else if token_a_mint == *beta_mint && token_b_mint == *alpha_mint
-    {
+    } else if token_a_mint == *beta_mint && token_b_mint == *alpha_mint {
         msg!("b is alpha, a is beta");
 
         alpha_asset = PoolEndpoints {
@@ -342,7 +340,7 @@ impl<'info> Invest<'info> for InvestOrca<'info> {
             self.source_token_a.to_account_info(),
             self.into_a.to_account_info(),
             self.source_token_b.to_account_info(),
-            self.into_b.to_account_info()
+            self.into_b.to_account_info(),
         )?;
 
         let alpha_amount_before = get_spl_amount(&alpha_asset.user)?;
@@ -389,8 +387,12 @@ impl<'info> Invest<'info> for InvestOrca<'info> {
         msg!("beta_invested_amount: {}", beta_invested_amount);
 
         let mutable_vault = self.vault_mut();
-        mutable_vault.get_alpha_mut()?.update_with_investment(alpha_invested_amount)?;
-        mutable_vault.get_beta_mut()?.update_with_investment(beta_invested_amount)?;
+        mutable_vault
+            .get_alpha_mut()?
+            .make_investment(alpha_invested_amount)?;
+        mutable_vault
+            .get_beta_mut()?
+            .make_investment(beta_invested_amount)?;
 
         Ok((alpha_invested_amount, beta_invested_amount))
     }
@@ -505,7 +507,7 @@ impl<'info> Redeem<'info> for RedeemOrca<'info> {
             self.source_token_a.to_account_info(),
             self.from_a.to_account_info(),
             self.source_token_b.to_account_info(),
-            self.from_b.to_account_info()
+            self.from_b.to_account_info(),
         )?;
 
         let alpha_amount_before = get_spl_amount(&alpha_asset.user)?;
@@ -549,8 +551,12 @@ impl<'info> Redeem<'info> for RedeemOrca<'info> {
             .ok_or_else(math_error!())?;
 
         let mutable_vault = self.vault_mut();
-        mutable_vault.get_alpha_mut()?.add_receipt(alpha_withdrawal_amount)?;
-        mutable_vault.get_beta_mut()?.add_receipt(beta_withdrawal_amount)?;
+        mutable_vault
+            .get_alpha_mut()?
+            .add_receipt(alpha_withdrawal_amount)?;
+        mutable_vault
+            .get_beta_mut()?
+            .add_receipt(beta_withdrawal_amount)?;
 
         Ok(())
     }
@@ -578,7 +584,7 @@ impl<'info> Redeem<'info> for RedeemOrca<'info> {
             self.source_token_a.to_account_info(),
             self.from_a.to_account_info(),
             self.source_token_b.to_account_info(),
-            self.from_b.to_account_info()
+            self.from_b.to_account_info(),
         )?;
 
         let alpha_amount_before = get_spl_amount(&alpha_asset.user)?;
@@ -592,7 +598,11 @@ impl<'info> Redeem<'info> for RedeemOrca<'info> {
         match _swap_config.alpha_to_beta {
             // swap for alpha for beta
             true => {
-                msg!("swap {:?} alpha for {:?} beta", _swap_config.max_in, _swap_config.min_out);
+                msg!(
+                    "swap {:?} alpha for {:?} beta",
+                    _swap_config.max_in,
+                    _swap_config.min_out
+                );
                 user_source = alpha_asset.user.clone();
                 pool_source = alpha_asset.pool;
                 user_destination = beta_asset.user.clone();
@@ -600,7 +610,11 @@ impl<'info> Redeem<'info> for RedeemOrca<'info> {
             }
             // ^_swap_config.alpha_to_beta; swap for beta for alpha
             false => {
-                msg!("swap {:?} beta for {:?} alpha", _swap_config.max_in, _swap_config.min_out);
+                msg!(
+                    "swap {:?} beta for {:?} alpha",
+                    _swap_config.max_in,
+                    _swap_config.min_out
+                );
                 user_source = beta_asset.user.clone();
                 pool_source = beta_asset.pool;
                 user_destination = alpha_asset.user.clone();

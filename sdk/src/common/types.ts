@@ -83,8 +83,8 @@ export interface VaultConfig {
   beta: AssetConfig;
   fixedRate: number;
   startAt: u64;
-  investAt: u64;
-  redeemAt: u64;
+  depositDuration: u64;
+  investDuration: u64;
 }
 
 export interface IAsset {
@@ -119,8 +119,11 @@ export interface IVault {
   fixedRate: number;
   state: State;
   startAt: u64;
-  investAt: u64;
-  redeemAt: u64;
+  startedAt: u64;
+  depositDuration: u64;
+  investedAt: u64;
+  investDuration: u64;
+  redeemedAt: u64;
   farmVault?: PublicKey;
 }
 

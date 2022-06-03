@@ -200,6 +200,11 @@ export type Vault = {
           "isSigner": true
         },
         {
+          "name": "gpsAuthority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
           "name": "globalProtocolState",
           "isMut": false,
           "isSigner": false
@@ -245,6 +250,36 @@ export type Vault = {
           "type": {
             "defined": "VaultConfig"
           }
+        }
+      ]
+    },
+    {
+      "name": "transitionVault",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "targetState",
+          "type": "string"
+        },
+        {
+          "name": "timestamp",
+          "type": "u64"
         }
       ]
     },
@@ -1653,12 +1688,30 @@ export type Vault = {
             "type": "u64"
           },
           {
-            "name": "investAt",
+            "name": "startedAt",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "depositDuration",
             "type": "u64"
           },
           {
-            "name": "redeemAt",
+            "name": "investedAt",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "investDuration",
             "type": "u64"
+          },
+          {
+            "name": "redeemedAt",
+            "type": {
+              "option": "u64"
+            }
           },
           {
             "name": "farmVault",
@@ -1815,11 +1868,11 @@ export type Vault = {
             "type": "u64"
           },
           {
-            "name": "investAt",
+            "name": "depositDuration",
             "type": "u64"
           },
           {
-            "name": "redeemAt",
+            "name": "investDuration",
             "type": "u64"
           }
         ]
@@ -2189,6 +2242,11 @@ export const IDL: Vault = {
           "isSigner": true
         },
         {
+          "name": "gpsAuthority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
           "name": "globalProtocolState",
           "isMut": false,
           "isSigner": false
@@ -2234,6 +2292,36 @@ export const IDL: Vault = {
           "type": {
             "defined": "VaultConfig"
           }
+        }
+      ]
+    },
+    {
+      "name": "transitionVault",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "targetState",
+          "type": "string"
+        },
+        {
+          "name": "timestamp",
+          "type": "u64"
         }
       ]
     },
@@ -3642,12 +3730,30 @@ export const IDL: Vault = {
             "type": "u64"
           },
           {
-            "name": "investAt",
+            "name": "startedAt",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "depositDuration",
             "type": "u64"
           },
           {
-            "name": "redeemAt",
+            "name": "investedAt",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "investDuration",
             "type": "u64"
+          },
+          {
+            "name": "redeemedAt",
+            "type": {
+              "option": "u64"
+            }
           },
           {
             "name": "farmVault",
@@ -3804,11 +3910,11 @@ export const IDL: Vault = {
             "type": "u64"
           },
           {
-            "name": "investAt",
+            "name": "depositDuration",
             "type": "u64"
           },
           {
-            "name": "redeemAt",
+            "name": "investDuration",
             "type": "u64"
           }
         ]

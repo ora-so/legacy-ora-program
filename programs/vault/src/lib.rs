@@ -66,8 +66,12 @@ pub mod vault {
     }
 
     #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
-    pub fn transition_vault(ctx: Context<TransitionVault>, target_state: String) -> ProgramResult {
-        instructions::transition_vault::handle(ctx, target_state)?;
+    pub fn transition_vault(
+        ctx: Context<TransitionVault>,
+        target_state: String,
+        timestamp: u64,
+    ) -> ProgramResult {
+        instructions::transition_vault::handle(ctx, target_state, timestamp)?;
 
         Ok(())
     }

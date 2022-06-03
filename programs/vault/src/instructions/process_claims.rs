@@ -86,30 +86,29 @@ pub struct ProcessClaimInfo<'info> {
 ///  relate n & n+1 accounts for user (deposit, history) -> update vault
 ///
 
-pub fn handle<'info>(
-    ctx: Context<'_, '_, '_, 'info, ProcessClaims<'info>>,
-) -> ProgramResult {
+pub fn handle<'info>(ctx: Context<'_, '_, '_, 'info, ProcessClaims<'info>>) -> ProgramResult {
     // @dev: we intentionally avoid checking vault state at this point. we want to process claims
 
     let vault_key = ctx.accounts.vault.key();
     let asset_to_process = ctx.accounts.vault.get_asset_mut(ctx.accounts.mint.key)?;
 
-    // if no excess for asset, set processed_claims = true and exit
-    if asset_to_process.excess == 0 {
-        msg!("no excess to process; normally exit");
-        // asset_to_process.finalize_claims();
-        // return Ok(())
-    }
-
-    // no more claims to process, exit early
+    // no more claims to process, exit early. note that we cannot check if asset->excess == 0,
+    // because it's possible the entire balance of a single tranche can be invested.
     if asset_to_process.claims_already_processed() {
         msg!("claims_already_processed. normally, exit early");
-        // return Ok(());
+        return Ok(());
+    } else if asset_to_process.deposits == 0 {
+        msg!("num deposits == 0");
+        // if there are no deposits on the vault, mark claims index = 0 and processed claims = true
+        asset_to_process.update_claims_index(asset_to_process.deposits);
+        asset_to_process.finalize_claims();
+        return Ok(());
     }
 
     // if no value is set (first time processing), the default will be the total number of depoits on the vault
-    // let start = asset_to_process.claims_idx.unwrap_or(asset_to_process.deposits);
-    let start = asset_to_process.deposits;
+    let start = asset_to_process
+        .claims_idx
+        .unwrap_or(asset_to_process.deposits);
     msg!("start: {}", start);
 
     let asset_amount_invested = asset_to_process.invested;
@@ -164,7 +163,8 @@ pub fn handle<'info>(
             compute_claim_amount(asset_amount_invested, cumulative_amount, deposit_amount)?;
 
         process_claim_info.history.add_claim(amount)?;
-        process_claim_info.history
+        process_claim_info
+            .history
             .exit(&crate::ID)
             .or(Err(ErrorCode::UnableToWriteToRemainingAccount))?;
 
@@ -205,9 +205,15 @@ pub fn compute_claim_amount(
         .ok_or_else(math_error!())?;
     msg!("cumulative_after_deposit: {}", cumulative_after_deposit);
 
-    if cumulative >= invested {
-        msg!("cumulative >= invested");
-        // cumulative greater than amount invested, before investment; return full amount
+    if cumulative == invested {
+        msg!("cumulative == invested");
+        // cumulative == total amount invested, before investment. return full amount and denote finished processing
+        // == true because we hit the cross-over point exactly.
+        return Ok((deposited, true));
+    } else if cumulative > invested {
+        msg!("cumulative > invested");
+        // cumulative > total amount invested, before investment. return full amount and denote finished processing
+        // == false. we have not yet hit the cross-over point.
         return Ok((deposited, false));
     } else if cumulative_after_deposit > invested {
         msg!("cumulative_after_deposit >= invested");
