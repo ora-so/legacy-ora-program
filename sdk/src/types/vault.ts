@@ -39,159 +39,6 @@ export type Vault = {
       ]
     },
     {
-      "name": "initializeSaber",
-      "accounts": [
-        {
-          "name": "authority",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "strategy",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenA",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenB",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "basePool",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "poolLp",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "bump",
-          "type": "u8"
-        },
-        {
-          "name": "flag",
-          "type": "u64"
-        },
-        {
-          "name": "version",
-          "type": "u16"
-        }
-      ]
-    },
-    {
-      "name": "initializeOrca",
-      "accounts": [
-        {
-          "name": "authority",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "strategy",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenA",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenB",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "swapProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "farmProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "pool",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "baseLp",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "farm",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "farmLp",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "doubleDipFarmLp",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "bump",
-          "type": "u8"
-        },
-        {
-          "name": "flag",
-          "type": "u64"
-        },
-        {
-          "name": "version",
-          "type": "u16"
-        }
-      ]
-    },
-    {
       "name": "initializeVault",
       "accounts": [
         {
@@ -391,7 +238,7 @@ export type Vault = {
       ]
     },
     {
-      "name": "investSaber",
+      "name": "processClaims",
       "accounts": [
         {
           "name": "payer",
@@ -414,8 +261,69 @@ export type Vault = {
           "isSigner": false
         },
         {
-          "name": "strategy",
+          "name": "mint",
           "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "history",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "lp",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationLpAta",
+          "isMut": true,
           "isSigner": false
         },
         {
@@ -429,73 +337,280 @@ export type Vault = {
           "isSigner": false
         },
         {
-          "name": "rent",
+          "name": "ataProgram",
           "isMut": false,
           "isSigner": false
         },
         {
-          "name": "saberSwapCommon",
-          "accounts": [
-            {
-              "name": "swap",
-              "isMut": false,
-              "isSigner": false
-            },
-            {
-              "name": "swapAuthority",
-              "isMut": false,
-              "isSigner": false
-            },
-            {
-              "name": "sourceTokenA",
-              "isMut": true,
-              "isSigner": false
-            },
-            {
-              "name": "reserveA",
-              "isMut": true,
-              "isSigner": false
-            },
-            {
-              "name": "sourceTokenB",
-              "isMut": true,
-              "isSigner": false
-            },
-            {
-              "name": "reserveB",
-              "isMut": true,
-              "isSigner": false
-            },
-            {
-              "name": "poolMint",
-              "isMut": true,
-              "isSigner": false
-            },
-            {
-              "name": "saberProgram",
-              "isMut": false,
-              "isSigner": false
-            }
-          ]
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdraw",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
         },
         {
-          "name": "outputLp",
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "lp",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceLp",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "ataProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initializeOrca",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "strategy",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenA",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenB",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "swapProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "farmProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "pool",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "baseLp",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "farm",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "farmLp",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "doubleDipFarmLp",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "bump",
+          "type": "u8"
+        },
+        {
+          "name": "flag",
+          "type": "u64"
+        },
+        {
+          "name": "version",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "rebalanceOrca",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "strategy",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaSwapProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaPool",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaAuthority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "userSource",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "poolSource",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "poolDestination",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userDestination",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "poolMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "feeAccount",
           "isMut": true,
           "isSigner": false
         }
       ],
       "args": [
         {
-          "name": "investableA",
-          "type": "u64"
-        },
-        {
-          "name": "investableB",
-          "type": "u64"
-        },
-        {
-          "name": "minTokensBack",
-          "type": "u64"
+          "name": "swapConfig",
+          "type": {
+            "option": {
+              "defined": "SwapConfig"
+            }
+          }
         }
       ]
     },
@@ -609,38 +724,7 @@ export type Vault = {
       ]
     },
     {
-      "name": "processClaims",
-      "accounts": [
-        {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "claim",
+      "name": "redeemOrca",
       "accounts": [
         {
           "name": "payer",
@@ -668,33 +752,8 @@ export type Vault = {
           "isSigner": false
         },
         {
-          "name": "history",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
+          "name": "strategy",
           "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "lp",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "destinationAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "destinationLpAta",
-          "isMut": true,
           "isSigner": false
         },
         {
@@ -708,17 +767,166 @@ export type Vault = {
           "isSigner": false
         },
         {
-          "name": "ataProgram",
+          "name": "rent",
           "isMut": false,
           "isSigner": false
         },
         {
-          "name": "rent",
+          "name": "orcaSwapProgram",
           "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaPool",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaAuthority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "poolMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourcePoolAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fromA",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fromB",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceTokenA",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceTokenB",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "feeAccount",
+          "isMut": true,
           "isSigner": false
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "minTokenA",
+          "type": "u64"
+        },
+        {
+          "name": "minTokenB",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "swapOrca",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "strategy",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaSwapProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaPool",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaAuthority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "userSource",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "poolSource",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "poolDestination",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userDestination",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "poolMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "feeAccount",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amountIn",
+          "type": "u64"
+        },
+        {
+          "name": "minAmountOut",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "initializeUserFarmOrca",
@@ -1065,6 +1273,179 @@ export type Vault = {
       "args": []
     },
     {
+      "name": "initializeSaber",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "strategy",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenA",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenB",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "basePool",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "poolLp",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "bump",
+          "type": "u8"
+        },
+        {
+          "name": "flag",
+          "type": "u64"
+        },
+        {
+          "name": "version",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "investSaber",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "strategy",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "saberSwapCommon",
+          "accounts": [
+            {
+              "name": "swap",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "swapAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "sourceTokenA",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "reserveA",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "sourceTokenB",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "reserveB",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "poolMint",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "saberProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "outputLp",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "investableA",
+          "type": "u64"
+        },
+        {
+          "name": "investableB",
+          "type": "u64"
+        },
+        {
+          "name": "minTokensBack",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "redeemSaber",
       "accounts": [
         {
@@ -1175,308 +1556,6 @@ export type Vault = {
         },
         {
           "name": "minTokenB",
-          "type": "u64"
-        },
-        {
-          "name": "swapConfig",
-          "type": {
-            "option": {
-              "defined": "SwapConfig"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "redeemOrca",
-      "accounts": [
-        {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "vaultStore",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "strategy",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "orcaSwapProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "orcaPool",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "orcaAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "poolMint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourcePoolAccount",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "fromA",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "fromB",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceTokenA",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceTokenB",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "feeAccount",
-          "isMut": true,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "minTokenA",
-          "type": "u64"
-        },
-        {
-          "name": "minTokenB",
-          "type": "u64"
-        },
-        {
-          "name": "swapConfig",
-          "type": {
-            "option": {
-              "defined": "SwapConfig"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "withdraw",
-      "accounts": [
-        {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "vaultStore",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "lp",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceLp",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "destinationAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "ataProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "amount",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "swapOrca",
-      "accounts": [
-        {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "vaultStore",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "strategy",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "orcaSwapProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "orcaPool",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "orcaAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "userSource",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "poolSource",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "poolDestination",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userDestination",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "poolMint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "feeAccount",
-          "isMut": true,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "amountIn",
-          "type": "u64"
-        },
-        {
-          "name": "minAmountOut",
           "type": "u64"
         }
       ]
@@ -2109,159 +2188,6 @@ export const IDL: Vault = {
       ]
     },
     {
-      "name": "initializeSaber",
-      "accounts": [
-        {
-          "name": "authority",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "strategy",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenA",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenB",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "basePool",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "poolLp",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "bump",
-          "type": "u8"
-        },
-        {
-          "name": "flag",
-          "type": "u64"
-        },
-        {
-          "name": "version",
-          "type": "u16"
-        }
-      ]
-    },
-    {
-      "name": "initializeOrca",
-      "accounts": [
-        {
-          "name": "authority",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "strategy",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenA",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenB",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "swapProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "farmProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "pool",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "baseLp",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "farm",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "farmLp",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "doubleDipFarmLp",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "bump",
-          "type": "u8"
-        },
-        {
-          "name": "flag",
-          "type": "u64"
-        },
-        {
-          "name": "version",
-          "type": "u16"
-        }
-      ]
-    },
-    {
       "name": "initializeVault",
       "accounts": [
         {
@@ -2461,7 +2387,7 @@ export const IDL: Vault = {
       ]
     },
     {
-      "name": "investSaber",
+      "name": "processClaims",
       "accounts": [
         {
           "name": "payer",
@@ -2484,8 +2410,69 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
-          "name": "strategy",
+          "name": "mint",
           "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "history",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "lp",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationLpAta",
+          "isMut": true,
           "isSigner": false
         },
         {
@@ -2499,73 +2486,280 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
-          "name": "rent",
+          "name": "ataProgram",
           "isMut": false,
           "isSigner": false
         },
         {
-          "name": "saberSwapCommon",
-          "accounts": [
-            {
-              "name": "swap",
-              "isMut": false,
-              "isSigner": false
-            },
-            {
-              "name": "swapAuthority",
-              "isMut": false,
-              "isSigner": false
-            },
-            {
-              "name": "sourceTokenA",
-              "isMut": true,
-              "isSigner": false
-            },
-            {
-              "name": "reserveA",
-              "isMut": true,
-              "isSigner": false
-            },
-            {
-              "name": "sourceTokenB",
-              "isMut": true,
-              "isSigner": false
-            },
-            {
-              "name": "reserveB",
-              "isMut": true,
-              "isSigner": false
-            },
-            {
-              "name": "poolMint",
-              "isMut": true,
-              "isSigner": false
-            },
-            {
-              "name": "saberProgram",
-              "isMut": false,
-              "isSigner": false
-            }
-          ]
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdraw",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
         },
         {
-          "name": "outputLp",
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "lp",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceLp",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "destinationAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "ataProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initializeOrca",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "strategy",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenA",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenB",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "swapProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "farmProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "pool",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "baseLp",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "farm",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "farmLp",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "doubleDipFarmLp",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "bump",
+          "type": "u8"
+        },
+        {
+          "name": "flag",
+          "type": "u64"
+        },
+        {
+          "name": "version",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "rebalanceOrca",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "strategy",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaSwapProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaPool",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaAuthority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "userSource",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "poolSource",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "poolDestination",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userDestination",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "poolMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "feeAccount",
           "isMut": true,
           "isSigner": false
         }
       ],
       "args": [
         {
-          "name": "investableA",
-          "type": "u64"
-        },
-        {
-          "name": "investableB",
-          "type": "u64"
-        },
-        {
-          "name": "minTokensBack",
-          "type": "u64"
+          "name": "swapConfig",
+          "type": {
+            "option": {
+              "defined": "SwapConfig"
+            }
+          }
         }
       ]
     },
@@ -2679,38 +2873,7 @@ export const IDL: Vault = {
       ]
     },
     {
-      "name": "processClaims",
-      "accounts": [
-        {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "claim",
+      "name": "redeemOrca",
       "accounts": [
         {
           "name": "payer",
@@ -2738,33 +2901,8 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
-          "name": "history",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
+          "name": "strategy",
           "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "lp",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "destinationAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "destinationLpAta",
-          "isMut": true,
           "isSigner": false
         },
         {
@@ -2778,17 +2916,166 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
-          "name": "ataProgram",
+          "name": "rent",
           "isMut": false,
           "isSigner": false
         },
         {
-          "name": "rent",
+          "name": "orcaSwapProgram",
           "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaPool",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaAuthority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "poolMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourcePoolAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fromA",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fromB",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceTokenA",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "sourceTokenB",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "feeAccount",
+          "isMut": true,
           "isSigner": false
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "minTokenA",
+          "type": "u64"
+        },
+        {
+          "name": "minTokenB",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "swapOrca",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "strategy",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaSwapProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaPool",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "orcaAuthority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "userSource",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "poolSource",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "poolDestination",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userDestination",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "poolMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "feeAccount",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amountIn",
+          "type": "u64"
+        },
+        {
+          "name": "minAmountOut",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "initializeUserFarmOrca",
@@ -3135,6 +3422,179 @@ export const IDL: Vault = {
       "args": []
     },
     {
+      "name": "initializeSaber",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "strategy",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenA",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenB",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "basePool",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "poolLp",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "bump",
+          "type": "u8"
+        },
+        {
+          "name": "flag",
+          "type": "u64"
+        },
+        {
+          "name": "version",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "investSaber",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "globalProtocolState",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "strategy",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "saberSwapCommon",
+          "accounts": [
+            {
+              "name": "swap",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "swapAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "sourceTokenA",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "reserveA",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "sourceTokenB",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "reserveB",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "poolMint",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "saberProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "outputLp",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "investableA",
+          "type": "u64"
+        },
+        {
+          "name": "investableB",
+          "type": "u64"
+        },
+        {
+          "name": "minTokensBack",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "redeemSaber",
       "accounts": [
         {
@@ -3245,308 +3705,6 @@ export const IDL: Vault = {
         },
         {
           "name": "minTokenB",
-          "type": "u64"
-        },
-        {
-          "name": "swapConfig",
-          "type": {
-            "option": {
-              "defined": "SwapConfig"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "redeemOrca",
-      "accounts": [
-        {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "vaultStore",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "strategy",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "orcaSwapProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "orcaPool",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "orcaAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "poolMint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourcePoolAccount",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "fromA",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "fromB",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceTokenA",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceTokenB",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "feeAccount",
-          "isMut": true,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "minTokenA",
-          "type": "u64"
-        },
-        {
-          "name": "minTokenB",
-          "type": "u64"
-        },
-        {
-          "name": "swapConfig",
-          "type": {
-            "option": {
-              "defined": "SwapConfig"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "withdraw",
-      "accounts": [
-        {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "vaultStore",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "lp",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceLp",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sourceAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "destinationAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "ataProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "amount",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "swapOrca",
-      "accounts": [
-        {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "authority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "globalProtocolState",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "vaultStore",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "strategy",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "orcaSwapProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "orcaPool",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "orcaAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "userSource",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "poolSource",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "poolDestination",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userDestination",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "poolMint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "feeAccount",
-          "isMut": true,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "amountIn",
-          "type": "u64"
-        },
-        {
-          "name": "minAmountOut",
           "type": "u64"
         }
       ]

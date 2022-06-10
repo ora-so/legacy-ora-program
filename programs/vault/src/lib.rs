@@ -21,31 +21,13 @@ declare_id!("CRDRY8VKkjPBBoyurn3jQdy7n2TjgexDqfePno5gnQxV");
 pub mod vault {
     use super::*;
 
+    // ========= [NATIVE VAULT] =========
+
     pub fn initialize_global_protocol_state(
         ctx: Context<InitializeGlobalProtocolState>,
         bump: u8,
     ) -> ProgramResult {
         instructions::init_global_protocol_state::handle(ctx, bump)
-    }
-
-    #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
-    pub fn initialize_saber<'info>(
-        ctx: Context<'_, '_, '_, 'info, InitializeSaber<'info>>,
-        bump: u8,
-        flag: u64,
-        version: u16,
-    ) -> ProgramResult {
-        instructions::init_strategy::handle(ctx, bump, flag, version)
-    }
-
-    #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
-    pub fn initialize_orca<'info>(
-        ctx: Context<'_, '_, '_, 'info, InitializeOrca<'info>>,
-        bump: u8,
-        flag: u64,
-        version: u16,
-    ) -> ProgramResult {
-        instructions::init_strategy::handle(ctx, bump, flag, version)
     }
 
     // todo: update sdk
@@ -68,7 +50,6 @@ pub mod vault {
         instructions::transition_vault::handle(ctx, target_state, timestamp)
     }
 
-    // todo: update sdk; vault_store, not vault
     #[allow(unused_must_use)]
     #[access_control(
         protocol_not_paused(&ctx.accounts.global_protocol_state) &&
@@ -84,16 +65,58 @@ pub mod vault {
         instructions::deposit::handle(ctx, deposit_index, receipt_bump, history_bump, amount)
     }
 
-    // todo: update logic that maps A/B pair to vault alpha/beta
     #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
-    pub fn invest_saber<'info>(
-        ctx: Context<'_, '_, '_, 'info, InvestSaber<'info>>,
-        investable_a: u64,
-        investable_b: u64,
-        min_tokens_back: u64,
+    pub fn process_claims<'info>(
+        ctx: Context<'_, '_, '_, 'info, ProcessClaims<'info>>,
     ) -> ProgramResult {
-        instructions::invest::handle(ctx, investable_a, investable_b, min_tokens_back)
+        instructions::process_claims::handle(ctx)
     }
+
+    #[allow(unused_must_use)]
+    #[access_control(
+        protocol_not_paused(&ctx.accounts.global_protocol_state) &&
+        verify_vault_store(&ctx.accounts.vault, ctx.accounts.vault_store.key)
+    )]
+    pub fn claim(ctx: Context<Claim>) -> ProgramResult {
+        instructions::claim::handle(ctx)
+    }
+
+    // todo: amounts correct on here?
+    #[allow(unused_must_use)]
+    #[access_control(
+        protocol_not_paused(&ctx.accounts.global_protocol_state) &&
+        verify_vault_store(&ctx.accounts.vault, ctx.accounts.vault_store.key)
+    )]
+    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
+        instructions::withdraw::handle(ctx, amount)
+    }
+
+    // ========= [ORCA] =========
+
+    #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
+    pub fn initialize_orca<'info>(
+        ctx: Context<'_, '_, '_, 'info, InitializeOrca<'info>>,
+        bump: u8,
+        flag: u64,
+        version: u16,
+    ) -> ProgramResult {
+        instructions::init_strategy::handle(ctx, bump, flag, version)
+    }
+
+    // todo: update sdk; vault_store, not vault
+    #[allow(unused_must_use)]
+    #[access_control(
+        protocol_not_paused(&ctx.accounts.global_protocol_state) &&
+        verify_vault_store(&ctx.accounts.vault, ctx.accounts.vault_store.key)
+    )]
+    pub fn rebalance_orca<'info>(
+        ctx: Context<'_, '_, '_, 'info, RebalanceOrca<'info>>,
+        swap_config: Option<SwapConfig>,
+    ) -> ProgramResult {
+        instructions::rebalance::handle(ctx, swap_config)
+    }
+
+    // ========= [ORCA :: POOL] =========
 
     // todo: update sdk; vault_store, not vault
     // todo: update logic that maps A/B pair to vault alpha/beta
@@ -111,11 +134,19 @@ pub mod vault {
         instructions::invest::handle(ctx, investable_a, investable_b, min_tokens_back)
     }
 
-    #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
-    pub fn process_claims<'info>(
-        ctx: Context<'_, '_, '_, 'info, ProcessClaims<'info>>,
+    // todo: update sdk; vault_store, not vault
+    // todo: update logic that maps A/B pair to vault alpha/beta
+    #[allow(unused_must_use)]
+    #[access_control(
+        protocol_not_paused(&ctx.accounts.global_protocol_state) &&
+        verify_vault_store(&ctx.accounts.vault, ctx.accounts.vault_store.key)
+    )]
+    pub fn redeem_orca<'info>(
+        ctx: Context<'_, '_, '_, 'info, RedeemOrca<'info>>,
+        min_token_a: u64,
+        min_token_b: u64,
     ) -> ProgramResult {
-        instructions::process_claims::handle(ctx)
+        instructions::redeem::handle(ctx, min_token_a, min_token_b)
     }
 
     // todo: update sdk; vault_store, not vault
@@ -124,11 +155,16 @@ pub mod vault {
         protocol_not_paused(&ctx.accounts.global_protocol_state) &&
         verify_vault_store(&ctx.accounts.vault, ctx.accounts.vault_store.key)
     )]
-    pub fn claim(ctx: Context<Claim>) -> ProgramResult {
-        instructions::claim::handle(ctx)
+    pub fn swap_orca<'info>(
+        ctx: Context<'_, '_, '_, 'info, SwapOrca<'info>>,
+        amount_in: u64,
+        min_amount_out: u64,
+    ) -> ProgramResult {
+        instructions::swap::handle(ctx, amount_in, min_amount_out)
     }
 
-    // todo: update sdk; vault_store, not vault
+    // ========= [ORCA :: FARM] =========
+
     #[allow(unused_must_use)]
     #[access_control(
         protocol_not_paused(&ctx.accounts.global_protocol_state) &&
@@ -140,7 +176,6 @@ pub mod vault {
         instructions::init_user_farm::handle(ctx)
     }
 
-    // todo: update sdk; vault_store, not vault
     #[allow(unused_must_use)]
     #[access_control(
         protocol_not_paused(&ctx.accounts.global_protocol_state) &&
@@ -176,6 +211,31 @@ pub mod vault {
         instructions::revert_lp::handle(ctx, None)
     }
 
+    // ========= [SABER] =========
+
+    #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
+    pub fn initialize_saber<'info>(
+        ctx: Context<'_, '_, '_, 'info, InitializeSaber<'info>>,
+        bump: u8,
+        flag: u64,
+        version: u16,
+    ) -> ProgramResult {
+        instructions::init_strategy::handle(ctx, bump, flag, version)
+    }
+
+    // ========= [SABER :: POOL] =========
+
+    // todo: update logic that maps A/B pair to vault alpha/beta
+    #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
+    pub fn invest_saber<'info>(
+        ctx: Context<'_, '_, '_, 'info, InvestSaber<'info>>,
+        investable_a: u64,
+        investable_b: u64,
+        min_tokens_back: u64,
+    ) -> ProgramResult {
+        instructions::invest::handle(ctx, investable_a, investable_b, min_tokens_back)
+    }
+
     // todo: update logic that maps A/B pair to vault alpha/beta
     #[access_control(protocol_not_paused(&ctx.accounts.global_protocol_state))]
     pub fn redeem_saber<'info>(
@@ -184,45 +244,6 @@ pub mod vault {
         min_token_b: u64,
     ) -> ProgramResult {
         instructions::redeem::handle(ctx, min_token_a, min_token_b)
-    }
-
-    // todo: update sdk; vault_store, not vault
-    // todo: update logic that maps A/B pair to vault alpha/beta
-    #[allow(unused_must_use)]
-    #[access_control(
-        protocol_not_paused(&ctx.accounts.global_protocol_state) &&
-        verify_vault_store(&ctx.accounts.vault, ctx.accounts.vault_store.key)
-    )]
-    pub fn redeem_orca<'info>(
-        ctx: Context<'_, '_, '_, 'info, RedeemOrca<'info>>,
-        min_token_a: u64,
-        min_token_b: u64,
-    ) -> ProgramResult {
-        instructions::redeem::handle(ctx, min_token_a, min_token_b)
-    }
-
-    // todo: update sdk; vault_store, not vault
-    #[allow(unused_must_use)]
-    #[access_control(
-        protocol_not_paused(&ctx.accounts.global_protocol_state) &&
-        verify_vault_store(&ctx.accounts.vault, ctx.accounts.vault_store.key)
-    )]
-    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
-        instructions::withdraw::handle(ctx, amount)
-    }
-
-    // todo: update sdk; vault_store, not vault
-    #[allow(unused_must_use)]
-    #[access_control(
-        protocol_not_paused(&ctx.accounts.global_protocol_state) &&
-        verify_vault_store(&ctx.accounts.vault, ctx.accounts.vault_store.key)
-    )]
-    pub fn swap_orca<'info>(
-        ctx: Context<'_, '_, '_, 'info, SwapOrca<'info>>,
-        amount_in: u64,
-        min_amount_out: u64,
-    ) -> ProgramResult {
-        instructions::swap::handle(ctx, amount_in, min_amount_out)
     }
 }
 

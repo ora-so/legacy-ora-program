@@ -1238,6 +1238,38 @@ programCommand("redeem_orca")
     }
   });
 
+programCommand("rebalance_orca")
+  .option("-v, --vault <pubkey>", "Vault pubkey")
+  .option("-osp, --orcaSwapProgram <pubkey>", "Orca Swap Program")
+  .option("-p, --pair <string>", "Orca pool pair (e.g. ORCA_SOL)")
+  // .option("-lp, --lpAmount <number>", "Amount of LP to withdraw")
+  .option("-e, --execute <boolean>", "Execute transaction or not")
+  .action(async (_, cmd) => {
+    const { keypair, env, vault, orcaSwapProgram, pair, execute } = cmd.opts();
+
+    const walletKeyPair: Keypair = loadWalletKey(keypair);
+    const _client = createClient(env, walletKeyPair);
+    const _vault = new PublicKey(vault);
+    const _orcaSwapProgram = new PublicKey(orcaSwapProgram);
+    const _execute = execute === "true" ? true : false;
+
+    try {
+      const tx = await _client.rebalanceOrca(
+        _vault,
+        _orcaSwapProgram,
+        pair,
+        walletKeyPair,
+        _execute
+      );
+
+      log.info("===========================================");
+      log.info(`Redeemed LP from ${pair} on vault ${_vault} in TX: ${tx}`);
+      log.info("===========================================");
+    } catch (error: any) {
+      log.error(error);
+    }
+  });
+
 programCommand("convert_lp_tokens")
   .option("-v, --vault <pubkey>", "Vault pubkey")
   .option("-ofp, --orcaFarmProgram <pubkey>", "Orca Farm Program")

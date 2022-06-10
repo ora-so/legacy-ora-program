@@ -10,6 +10,7 @@ use crate::{
     init_strategy::StrategyInitializer,
     init_user_farm::FarmInitializer,
     invest::Invest,
+    rebalance::{Rebalance, SwapConfig},
     redeem::Redeem,
     revert_lp::Reverter,
     state::{GlobalProtocolState, HasVault, StrategyFlag, Vault},
@@ -557,128 +558,136 @@ impl<'info> Redeem<'info> for RedeemOrca<'info> {
 
         Ok(())
     }
+}
 
-    // // question: how much of this code can be re-used across adapters? probably at least the pool assets -> vault tranche
-    // fn adjust_returns(&mut self, swap_config: Option<SwapConfig>) -> ProgramResult {
-    //     // exit early without a valid swap config
-    //     let _swap_config = match swap_config {
-    //         Some(x) => x,
-    //         None => return Ok(()),
-    //     };
+// =====================================================================
 
-    //     // only perform swap and update received values if max_in is non-zero and positive
-    //     if _swap_config.max_in == 0 {
-    //         return Ok(());
-    //     }
+#[derive(Accounts)]
+pub struct RebalanceOrca<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
 
-    //     // map pool tokens A & B to vault tranche assets
-    //     let vault_alpha_mint = self.vault.alpha.mint;
-    //     let vault_beta_mint = self.vault.beta.mint;
+    /// CHECK: read-only account to validate vault address
+    pub authority: UncheckedAccount<'info>,
 
-    //     let (alpha_asset, beta_asset) = into_pool_endpoints(
-    //         &vault_alpha_mint,
-    //         &vault_beta_mint,
-    //         self.source_token_a.to_account_info(),
-    //         self.from_a.to_account_info(),
-    //         self.source_token_b.to_account_info(),
-    //         self.from_b.to_account_info(),
-    //     )?;
+    #[account(
+        seeds = [GLOBAL_STATE_SEED.as_bytes()],
+        bump,
+    )]
+    pub global_protocol_state: Box<Account<'info, GlobalProtocolState>>,
 
-    //     let alpha_amount_before = get_spl_amount(&alpha_asset.user)?;
-    //     let beta_amount_before = get_spl_amount(&beta_asset.user)?;
+    #[account(
+        mut,
+        seeds = [
+            VAULT_SEED.as_bytes(),
+            authority.key().to_bytes().as_ref()
+        ],
+        bump,
+        constraint = vault.strategy == strategy.key(),
+        constraint = vault.authority == authority.key(),
+        constraint = vault.strategist == payer.key()
+    )]
+    pub vault: Box<Account<'info, Vault>>,
 
-    //     let user_source: AccountInfo<'info>;
-    //     let pool_source: AccountInfo<'info>;
-    //     let user_destination: AccountInfo<'info>;
-    //     let pool_destination: AccountInfo<'info>;
+    /// CHECK: verified via instruction access_control
+    #[account(mut)]
+    pub vault_store: UncheckedAccount<'info>,
 
-    //     match _swap_config.alpha_to_beta {
-    //         // swap for alpha for beta
-    //         true => {
-    //             msg!(
-    //                 "swap {:?} alpha for {:?} beta",
-    //                 _swap_config.max_in,
-    //                 _swap_config.min_out
-    //             );
-    //             user_source = alpha_asset.user.clone();
-    //             pool_source = alpha_asset.pool;
-    //             user_destination = beta_asset.user.clone();
-    //             pool_destination = beta_asset.pool;
-    //         }
-    //         // ^_swap_config.alpha_to_beta; swap for beta for alpha
-    //         false => {
-    //             msg!(
-    //                 "swap {:?} beta for {:?} alpha",
-    //                 _swap_config.max_in,
-    //                 _swap_config.min_out
-    //             );
-    //             user_source = beta_asset.user.clone();
-    //             pool_source = beta_asset.pool;
-    //             user_destination = alpha_asset.user.clone();
-    //             pool_destination = alpha_asset.pool;
-    //         }
-    //     };
+    pub strategy: Box<Account<'info, OrcaStrategyDataV0>>,
 
-    //     let vault_signer_seeds =
-    //         generate_vault_seeds!(*self.authority.key.as_ref(), self.vault.bump);
+    pub token_program: Program<'info, Token>,
 
-    //     swap(
-    //         SwapToken {
-    //             orca_swap_program: self.orca_swap_program.to_account_info(),
-    //             orca_pool: self.orca_pool.to_account_info(),
-    //             orca_authority: self.orca_authority.to_account_info(),
-    //             user_transfer_authority: self.vault.to_account_info(), // todo: change to vault_store
-    //             user_source,
-    //             pool_source,
-    //             pool_destination,
-    //             user_destination,
-    //             pool_mint: self.pool_mint.to_account_info(),
-    //             fee_account: self.fee_account.to_account_info(),
-    //             token_program: self.token_program.to_account_info(),
-    //         },
-    //         _swap_config.max_in,
-    //         _swap_config.min_out,
-    //         &[vault_signer_seeds],
-    //     )?;
+    // ====================================================
+    // orca accounts
+    // ====================================================
+    /// CHECK: verfied via orca CPI
+    pub orca_swap_program: UncheckedAccount<'info>,
 
-    //     let alpha_amount_after = get_spl_amount(&alpha_asset.user)?;
-    //     let beta_amount_after = get_spl_amount(&beta_asset.user)?;
+    /// CHECK: verfied via orca CPI
+    pub orca_pool: UncheckedAccount<'info>,
 
-    //     // update received amounts for vault tranches
-    //     let mutable_vault = self.vault_mut();
-    //     match _swap_config.alpha_to_beta {
-    //         // swapped for alpha for beta
-    //         true => {
-    //             // before > after => before - after > 0
-    //             let alpha_delta = alpha_amount_before
-    //                 .checked_sub(alpha_amount_after)
-    //                 .ok_or_else(math_error!())?;
-    //             mutable_vault.get_alpha_mut()?.sub_receipt(alpha_delta)?;
+    /// CHECK: verfied via orca CPI
+    pub orca_authority: UncheckedAccount<'info>,
 
-    //             // after > before => after - before > 0
-    //             let beta_delta = beta_amount_after
-    //                 .checked_sub(beta_amount_before)
-    //                 .ok_or_else(math_error!())?;
-    //             mutable_vault.get_beta_mut()?.add_receipt(beta_delta)?;
-    //         }
-    //         // ^_swap_config.alpha_to_beta; swapped for beta for alpha
-    //         false => {
-    //             // after > before => after - before > 0
-    //             let alpha_delta = alpha_amount_after
-    //                 .checked_sub(alpha_amount_before)
-    //                 .ok_or_else(math_error!())?;
-    //             mutable_vault.get_alpha_mut()?.add_receipt(alpha_delta)?;
+    /// CHECK: verfied via orca CPI
+    #[account(mut)]
+    pub user_source: UncheckedAccount<'info>,
 
-    //             // before > after => before - after > 0
-    //             let beta_delta = beta_amount_before
-    //                 .checked_sub(beta_amount_after)
-    //                 .ok_or_else(math_error!())?;
-    //             mutable_vault.get_beta_mut()?.sub_receipt(beta_delta)?;
-    //         }
-    //     };
+    /// CHECK: verfied via orca CPI
+    #[account(mut)]
+    pub pool_source: UncheckedAccount<'info>,
 
-    //     Ok(())
-    // }
+    /// CHECK: verfied via orca CPI
+    #[account(mut)]
+    pub pool_destination: UncheckedAccount<'info>,
+
+    /// CHECK: verfied via orca CPI
+    #[account(mut)]
+    pub user_destination: UncheckedAccount<'info>,
+
+    /// CHECK: verfied via orca CPI
+    #[account(mut)]
+    pub pool_mint: UncheckedAccount<'info>,
+
+    /// CHECK: verfied via orca CPI
+    #[account(mut)]
+    pub fee_account: UncheckedAccount<'info>,
+}
+
+impl_has_vault!(RebalanceOrca<'_>);
+
+impl<'info> Rebalance<'info> for RebalanceOrca<'info> {
+    // question: how much of this code can be re-used across adapters? probably at least the pool assets -> vault tranche
+    fn rebalance(&mut self, swap_config: SwapConfig) -> OraResult<(u64, u64, u64, u64)> {
+        // map pool tokens A & B to vault tranche assets
+        let vault_alpha_mint = self.vault.alpha.mint;
+        let vault_beta_mint = self.vault.beta.mint;
+
+        let (alpha_asset, beta_asset) = into_pool_endpoints(
+            &vault_alpha_mint,
+            &vault_beta_mint,
+            self.user_source.to_account_info(), // source_token_a
+            self.pool_source.to_account_info(), // from_a
+            self.user_destination.to_account_info(), // source_token_b
+            self.pool_destination.to_account_info(), // from_b
+        )?;
+
+        let alpha_amount_before = get_spl_amount(&alpha_asset.user)?;
+        let beta_amount_before = get_spl_amount(&beta_asset.user)?;
+
+        let vault_key = self.vault.key();
+        let vault_store_signer_seeds =
+            generate_vault_store_seeds!(*vault_key.as_ref(), self.vault.vault_store_bump);
+
+        swap(
+            SwapToken {
+                orca_swap_program: self.orca_swap_program.to_account_info(),
+                orca_pool: self.orca_pool.to_account_info(),
+                orca_authority: self.orca_authority.to_account_info(),
+                user_transfer_authority: self.vault_store.to_account_info(),
+                user_source: self.user_source.to_account_info(),
+                pool_source: self.pool_source.to_account_info(),
+                pool_destination: self.pool_destination.to_account_info(),
+                user_destination: self.user_destination.to_account_info(),
+                pool_mint: self.pool_mint.to_account_info(),
+                fee_account: self.fee_account.to_account_info(),
+                token_program: self.token_program.to_account_info(),
+            },
+            swap_config.max_in,
+            swap_config.min_out,
+            &[vault_store_signer_seeds],
+        )?;
+
+        let alpha_amount_after = get_spl_amount(&alpha_asset.user)?;
+        let beta_amount_after = get_spl_amount(&beta_asset.user)?;
+
+        Ok((
+            alpha_amount_before,
+            alpha_amount_after,
+            beta_amount_before,
+            beta_amount_after,
+        ))
+    }
 }
 
 // =====================================================================

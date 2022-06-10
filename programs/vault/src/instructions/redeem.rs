@@ -7,19 +7,6 @@ use {
     anchor_lang::prelude::*,
 };
 
-// #[repr(C)]
-// #[derive(AnchorSerialize, AnchorDeserialize, Debug, Default, PartialEq)]
-// pub struct SwapConfig {
-//     /// max number of tokens to put into the pool
-//     pub max_in: u64,
-//     /// min number of tokens expected out of the pool
-//     pub min_out: u64,
-//     /// swap direction: alpha_to_beta swaps alpha for beta, !alpha_to_beta swaps beta for alpha
-//     /// this allows the strategist to compute swap info at the SDK layer and then pass that info
-//     /// to the instruction.
-//     pub alpha_to_beta: bool,
-// }
-
 pub fn balance_difference(
     token_account: &mut Account<TokenAccount>,
 ) -> std::result::Result<(u64, u64), ProgramError> {
