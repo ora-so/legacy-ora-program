@@ -370,7 +370,7 @@ pub struct TransferLamports<'info> {
     pub system_program: AccountInfo<'info>,
 }
 
-pub fn transfer_from_signer<'a, 'b, 'c, 'info>(
+pub fn transfer_from_signer_with_context<'a, 'b, 'c, 'info>(
     ctx: CpiContext<'a, 'b, 'c, 'info, TransferLamports<'info>>,
     amount: u64,
 ) -> ProgramResult {
@@ -385,9 +385,19 @@ pub fn transfer_from_signer<'a, 'b, 'c, 'info>(
             ctx.accounts.to,
             ctx.accounts.system_program,
         ],
-    )?;
+    )
+}
 
-    Ok(())
+pub fn transfer_from_signer<'info>(
+    from: AccountInfo<'info>,
+    to: AccountInfo<'info>,
+    system_program: AccountInfo<'info>,
+    amount: u64,
+) -> ProgramResult {
+    invoke(
+        &solana_program::system_instruction::transfer(&from.key, &to.key, amount),
+        &[from, to, system_program],
+    )
 }
 
 pub fn transfer_lamports(
@@ -461,7 +471,7 @@ pub fn transfer_tokens<'info>(
             },
         );
 
-        transfer_from_signer(context.with_signer(signer_seeds), amount)?;
+        transfer_from_signer_with_context(context.with_signer(signer_seeds), amount)?;
     } else if *source.owner == crate::id() && *dest.owner == SYSTEM_PROGRAM_ID {
         // source account is a PDA owned by this program && dest account is owned by system_program
         msg!("tranfser SOL with direct lamport manipulation");

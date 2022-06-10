@@ -35,6 +35,10 @@ pub struct Deposit<'info> {
     )]
     pub vault: Box<Account<'info, Vault>>,
 
+    /// CHECK: verified via instruction access_control
+    #[account(mut)]
+    pub vault_store: UncheckedAccount<'info>,
+
     #[account(
         init,
         seeds = [
@@ -141,7 +145,7 @@ pub fn handle(
     transfer_with_verified_ata(
         ctx.accounts.source_ata.to_account_info(),
         ctx.accounts.destination_ata.to_account_info(),
-        ctx.accounts.vault.to_account_info(),
+        ctx.accounts.vault_store.to_account_info(),
         ctx.accounts.mint.to_account_info(),
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.ata_program.to_account_info(),

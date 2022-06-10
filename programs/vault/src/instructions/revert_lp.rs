@@ -5,12 +5,11 @@ use crate::{
 use anchor_lang::prelude::*;
 
 pub trait Reverter<'info> {
-    fn revert_lp(&mut self, bump: u8, amount: Option<u64>) -> ProgramResult;
+    fn revert_lp(&mut self, amount: Option<u64>) -> ProgramResult;
 }
 
 pub fn handle<'info, T: Reverter<'info> + HasVault>(
     ctx: Context<'_, '_, '_, 'info, T>,
-    bump: u8,
     amount: Option<u64>,
 ) -> ProgramResult {
     require!(
@@ -18,5 +17,5 @@ pub fn handle<'info, T: Reverter<'info> + HasVault>(
         ErrorCode::InvalidVaultState
     );
 
-    ctx.accounts.revert_lp(bump, amount)
+    ctx.accounts.revert_lp(amount)
 }

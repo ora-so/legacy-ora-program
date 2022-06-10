@@ -1,7 +1,8 @@
 use crate::{
-    constant::{GLOBAL_STATE_SEED, SOL_DECIMALS, SOL_PUBKEY, VAULT_SEED},
+    constant::{GLOBAL_STATE_SEED, SOL_DECIMALS, SOL_PUBKEY, VAULT_SEED, VAULT_STORE_SEED},
     error::ErrorCode,
     state::{asset::Asset, vault::Vault, vault::VaultConfig, GlobalProtocolState},
+    util::create_or_allocate_account_raw,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::Mint;
@@ -10,7 +11,6 @@ use spl_token::state::Mint as SplMint;
 use std::mem::size_of;
 
 #[derive(Accounts)]
-#[instruction(vault_bump: u8)]
 pub struct InitializeVault<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -51,6 +51,10 @@ pub struct InitializeVault<'info> {
     )]
     pub vault: Box<Account<'info, Vault>>,
 
+    /// CHECK: manually initialized PDA; verified in instruction
+    #[account(mut)]
+    pub vault_store: UncheckedAccount<'info>,
+
     /// CHECK: can be wrapped wSOL, so cannot use Mint
     #[account(mut)]
     pub alpha_mint: UncheckedAccount<'info>,
@@ -76,6 +80,8 @@ pub struct InitializeVault<'info> {
     pub beta_lp: Box<Account<'info, Mint>>,
 
     pub system_program: Program<'info, System>,
+
+    pub rent: Sysvar<'info, Rent>,
 }
 
 /// Create the vault struct with the initial configuration data.
@@ -88,14 +94,36 @@ pub struct InitializeVault<'info> {
 pub fn handle(
     ctx: Context<InitializeVault>,
     vault_bump: u8,
+    vault_store_bump: u8,
     vault_config: VaultConfig,
 ) -> ProgramResult {
-    msg!(
-        "initializing vault {} with authority {}",
-        ctx.accounts.vault.key(),
-        ctx.accounts.authority.key()
-    );
-    msg!("vault_config: {:?}", vault_config);
+    msg!("init vault_store");
+
+    // prevent screwing ourselves over with re-init attacks by verifying account data is zeroed out
+    if !ctx.accounts.vault_store.data_is_empty() {
+        msg!("Expected empty vault_store account");
+        return Err(ErrorCode::AlreadyInitializedAccount.into());
+    }
+
+    let vault_key = ctx.accounts.vault.key();
+    let vault_store_signer_seeds =
+        generate_vault_store_seeds!(*vault_key.as_ref(), vault_store_bump);
+
+    create_or_allocate_account_raw(
+        crate::id(),
+        // do not re-assign ownership; otherwise, we will get error that account spent lamports it does not own
+        false,
+        &ctx.accounts.vault_store.to_account_info(),
+        &ctx.accounts.rent.to_account_info(),
+        &ctx.accounts.system_program.to_account_info(),
+        &ctx.accounts.authority.to_account_info(),
+        // allocate no space, allow for PDA to sign system_program::transfer instructions
+        0,
+        0,
+        // authority is signer
+        &[],
+        vault_store_signer_seeds,
+    )?;
 
     verify_mint_lp_decimals_match(
         ctx.accounts.alpha_mint.to_account_info(),
@@ -107,7 +135,6 @@ pub fn handle(
         .asset_cap(vault_config.alpha.asset_cap)
         .user_cap(vault_config.alpha.user_cap)
         .build()?;
-    msg!("alpha: {:?}", alpha);
 
     verify_mint_lp_decimals_match(
         ctx.accounts.beta_mint.to_account_info(),
@@ -119,11 +146,13 @@ pub fn handle(
         .asset_cap(vault_config.beta.asset_cap)
         .user_cap(vault_config.beta.user_cap)
         .build()?;
-    msg!("beta: {:?}", beta);
 
+    msg!("initializing vault");
     ctx.accounts.vault.init(
         vault_bump,
         ctx.accounts.authority.key(),
+        ctx.accounts.vault_store.key(),
+        vault_store_bump,
         vault_config,
         alpha,
         beta,

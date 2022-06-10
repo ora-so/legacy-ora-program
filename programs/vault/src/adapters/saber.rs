@@ -1,9 +1,9 @@
 use crate::{
-    error::OraResult,
     constant::{GLOBAL_STATE_SEED, STRATEGY_SEED, VAULT_SEED},
+    error::OraResult,
     init_strategy::StrategyInitializer,
-    invest::{Invest},
-    redeem::{verify_received, Redeem, SwapConfig},
+    invest::Invest,
+    redeem::{verify_received, Redeem},
     state::{GlobalProtocolState, HasVault, StrategyFlag, Vault},
 };
 use anchor_lang::prelude::*;
@@ -296,11 +296,6 @@ impl<'info> Redeem<'info> for RedeemSaber<'info> {
         self.vault
             .update_receipt(&self.saber_swap_common.source_token_b.mint, received_b)?;
 
-        Ok(())
-    }
-
-    // todo
-    fn adjust_returns(&mut self, _swap_config: Option<SwapConfig>) -> ProgramResult {
         Ok(())
     }
 }

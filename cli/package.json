@@ -4,11 +4,12 @@
   "license": "MIT",
   "dependencies": {
     "@ora-protocol/sdk": "file:../sdk",
-    "decimal.js": "^10.3.1",
-    "@saberhq/stableswap-sdk": "^1.12.48",
     "@project-serum/anchor": "^0.22.0",
+    "@saberhq/stableswap-sdk": "^1.12.48",
     "@solana/spl-token": "^0.1.8",
+    "@solana/web3.js": "^1.43.4",
     "commander": "^8.1.0",
+    "decimal.js": "^10.3.1",
     "loglevel": "^1.7.1"
   },
   "devDependencies": {

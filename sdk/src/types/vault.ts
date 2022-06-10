@@ -215,6 +215,11 @@ export type Vault = {
           "isSigner": false
         },
         {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "alphaMint",
           "isMut": true,
           "isSigner": false
@@ -238,11 +243,20 @@ export type Vault = {
           "name": "systemProgram",
           "isMut": false,
           "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
         }
       ],
       "args": [
         {
           "name": "vaultBump",
+          "type": "u8"
+        },
+        {
+          "name": "vaultStoreBump",
           "type": "u8"
         },
         {
@@ -303,6 +317,11 @@ export type Vault = {
         },
         {
           "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "vaultStore",
           "isMut": true,
           "isSigner": false
         },
@@ -504,6 +523,11 @@ export type Vault = {
           "isSigner": false
         },
         {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "strategy",
           "isMut": false,
           "isSigner": false
@@ -639,6 +663,11 @@ export type Vault = {
           "isSigner": false
         },
         {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "history",
           "isMut": true,
           "isSigner": false
@@ -715,7 +744,7 @@ export type Vault = {
           "isSigner": false
         },
         {
-          "name": "farmVault",
+          "name": "vaultStore",
           "isMut": true,
           "isSigner": false
         },
@@ -750,12 +779,7 @@ export type Vault = {
           "isSigner": false
         }
       ],
-      "args": [
-        {
-          "name": "bump",
-          "type": "u8"
-        }
-      ]
+      "args": []
     },
     {
       "name": "convertOrcaLp",
@@ -781,7 +805,7 @@ export type Vault = {
           "isSigner": false
         },
         {
-          "name": "farmVault",
+          "name": "vaultStore",
           "isMut": true,
           "isSigner": false
         },
@@ -861,12 +885,7 @@ export type Vault = {
           "isSigner": false
         }
       ],
-      "args": [
-        {
-          "name": "bump",
-          "type": "u8"
-        }
-      ]
+      "args": []
     },
     {
       "name": "harvestOrca",
@@ -892,7 +911,7 @@ export type Vault = {
           "isSigner": false
         },
         {
-          "name": "farmVault",
+          "name": "vaultStore",
           "isMut": true,
           "isSigner": false
         },
@@ -942,12 +961,7 @@ export type Vault = {
           "isSigner": false
         }
       ],
-      "args": [
-        {
-          "name": "bump",
-          "type": "u8"
-        }
-      ]
+      "args": []
     },
     {
       "name": "revertOrcaLp",
@@ -973,7 +987,7 @@ export type Vault = {
           "isSigner": false
         },
         {
-          "name": "farmVault",
+          "name": "vaultStore",
           "isMut": true,
           "isSigner": false
         },
@@ -1048,12 +1062,7 @@ export type Vault = {
           "isSigner": false
         }
       ],
-      "args": [
-        {
-          "name": "bump",
-          "type": "u8"
-        }
-      ]
+      "args": []
     },
     {
       "name": "redeemSaber",
@@ -1202,6 +1211,11 @@ export type Vault = {
           "isSigner": false
         },
         {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "strategy",
           "isMut": false,
           "isSigner": false
@@ -1315,6 +1329,11 @@ export type Vault = {
           "isSigner": false
         },
         {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "mint",
           "isMut": true,
           "isSigner": false
@@ -1391,7 +1410,7 @@ export type Vault = {
           "isSigner": false
         },
         {
-          "name": "farmVault",
+          "name": "vaultStore",
           "isMut": true,
           "isSigner": false
         },
@@ -1418,11 +1437,6 @@ export type Vault = {
         {
           "name": "orcaAuthority",
           "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "userTransferAuthority",
-          "isMut": true,
           "isSigner": false
         },
         {
@@ -1457,10 +1471,6 @@ export type Vault = {
         }
       ],
       "args": [
-        {
-          "name": "bump",
-          "type": "u8"
-        },
         {
           "name": "amountIn",
           "type": "u64"
@@ -1654,6 +1664,14 @@ export type Vault = {
             "type": "publicKey"
           },
           {
+            "name": "vaultStore",
+            "type": "publicKey"
+          },
+          {
+            "name": "vaultStoreBump",
+            "type": "u8"
+          },
+          {
             "name": "alpha",
             "type": {
               "defined": "Asset"
@@ -1714,10 +1732,14 @@ export type Vault = {
             }
           },
           {
-            "name": "farmVault",
+            "name": "rebalancedAt",
             "type": {
-              "option": "publicKey"
+              "option": "u64"
             }
+          },
+          {
+            "name": "reblanced",
+            "type": "bool"
           }
         ]
       }
@@ -1902,6 +1924,9 @@ export type Vault = {
             "name": "UninitializedAccount"
           },
           {
+            "name": "AlreadyInitializedAccount"
+          },
+          {
             "name": "IncorrectOwner"
           },
           {
@@ -1944,6 +1969,9 @@ export type Vault = {
             "name": "InvalidVaultState"
           },
           {
+            "name": "InvalidVaultStore"
+          },
+          {
             "name": "NonexistentAsset"
           },
           {
@@ -1980,12 +2008,6 @@ export type Vault = {
             "name": "MissingRequiredConfig"
           },
           {
-            "name": "CannotReinstantiateFarmVault"
-          },
-          {
-            "name": "MissingFarmVault"
-          },
-          {
             "name": "UnexpectedAuthority"
           },
           {
@@ -1996,6 +2018,9 @@ export type Vault = {
           },
           {
             "name": "UnableToWriteToRemainingAccount"
+          },
+          {
+            "name": "ExpectedNonzeroReturns"
           }
         ]
       }
@@ -2030,6 +2055,9 @@ export type Vault = {
           },
           {
             "name": "Redeem"
+          },
+          {
+            "name": "Rebalance"
           },
           {
             "name": "Withdraw"
@@ -2257,6 +2285,11 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "alphaMint",
           "isMut": true,
           "isSigner": false
@@ -2280,11 +2313,20 @@ export const IDL: Vault = {
           "name": "systemProgram",
           "isMut": false,
           "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
         }
       ],
       "args": [
         {
           "name": "vaultBump",
+          "type": "u8"
+        },
+        {
+          "name": "vaultStoreBump",
           "type": "u8"
         },
         {
@@ -2345,6 +2387,11 @@ export const IDL: Vault = {
         },
         {
           "name": "vault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "vaultStore",
           "isMut": true,
           "isSigner": false
         },
@@ -2546,6 +2593,11 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "strategy",
           "isMut": false,
           "isSigner": false
@@ -2681,6 +2733,11 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "history",
           "isMut": true,
           "isSigner": false
@@ -2757,7 +2814,7 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
-          "name": "farmVault",
+          "name": "vaultStore",
           "isMut": true,
           "isSigner": false
         },
@@ -2792,12 +2849,7 @@ export const IDL: Vault = {
           "isSigner": false
         }
       ],
-      "args": [
-        {
-          "name": "bump",
-          "type": "u8"
-        }
-      ]
+      "args": []
     },
     {
       "name": "convertOrcaLp",
@@ -2823,7 +2875,7 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
-          "name": "farmVault",
+          "name": "vaultStore",
           "isMut": true,
           "isSigner": false
         },
@@ -2903,12 +2955,7 @@ export const IDL: Vault = {
           "isSigner": false
         }
       ],
-      "args": [
-        {
-          "name": "bump",
-          "type": "u8"
-        }
-      ]
+      "args": []
     },
     {
       "name": "harvestOrca",
@@ -2934,7 +2981,7 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
-          "name": "farmVault",
+          "name": "vaultStore",
           "isMut": true,
           "isSigner": false
         },
@@ -2984,12 +3031,7 @@ export const IDL: Vault = {
           "isSigner": false
         }
       ],
-      "args": [
-        {
-          "name": "bump",
-          "type": "u8"
-        }
-      ]
+      "args": []
     },
     {
       "name": "revertOrcaLp",
@@ -3015,7 +3057,7 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
-          "name": "farmVault",
+          "name": "vaultStore",
           "isMut": true,
           "isSigner": false
         },
@@ -3090,12 +3132,7 @@ export const IDL: Vault = {
           "isSigner": false
         }
       ],
-      "args": [
-        {
-          "name": "bump",
-          "type": "u8"
-        }
-      ]
+      "args": []
     },
     {
       "name": "redeemSaber",
@@ -3244,6 +3281,11 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "strategy",
           "isMut": false,
           "isSigner": false
@@ -3357,6 +3399,11 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
+          "name": "vaultStore",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "mint",
           "isMut": true,
           "isSigner": false
@@ -3433,7 +3480,7 @@ export const IDL: Vault = {
           "isSigner": false
         },
         {
-          "name": "farmVault",
+          "name": "vaultStore",
           "isMut": true,
           "isSigner": false
         },
@@ -3460,11 +3507,6 @@ export const IDL: Vault = {
         {
           "name": "orcaAuthority",
           "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "userTransferAuthority",
-          "isMut": true,
           "isSigner": false
         },
         {
@@ -3499,10 +3541,6 @@ export const IDL: Vault = {
         }
       ],
       "args": [
-        {
-          "name": "bump",
-          "type": "u8"
-        },
         {
           "name": "amountIn",
           "type": "u64"
@@ -3696,6 +3734,14 @@ export const IDL: Vault = {
             "type": "publicKey"
           },
           {
+            "name": "vaultStore",
+            "type": "publicKey"
+          },
+          {
+            "name": "vaultStoreBump",
+            "type": "u8"
+          },
+          {
             "name": "alpha",
             "type": {
               "defined": "Asset"
@@ -3756,10 +3802,14 @@ export const IDL: Vault = {
             }
           },
           {
-            "name": "farmVault",
+            "name": "rebalancedAt",
             "type": {
-              "option": "publicKey"
+              "option": "u64"
             }
+          },
+          {
+            "name": "reblanced",
+            "type": "bool"
           }
         ]
       }
@@ -3944,6 +3994,9 @@ export const IDL: Vault = {
             "name": "UninitializedAccount"
           },
           {
+            "name": "AlreadyInitializedAccount"
+          },
+          {
             "name": "IncorrectOwner"
           },
           {
@@ -3986,6 +4039,9 @@ export const IDL: Vault = {
             "name": "InvalidVaultState"
           },
           {
+            "name": "InvalidVaultStore"
+          },
+          {
             "name": "NonexistentAsset"
           },
           {
@@ -4022,12 +4078,6 @@ export const IDL: Vault = {
             "name": "MissingRequiredConfig"
           },
           {
-            "name": "CannotReinstantiateFarmVault"
-          },
-          {
-            "name": "MissingFarmVault"
-          },
-          {
             "name": "UnexpectedAuthority"
           },
           {
@@ -4038,6 +4088,9 @@ export const IDL: Vault = {
           },
           {
             "name": "UnableToWriteToRemainingAccount"
+          },
+          {
+            "name": "ExpectedNonzeroReturns"
           }
         ]
       }
@@ -4072,6 +4125,9 @@ export const IDL: Vault = {
           },
           {
             "name": "Redeem"
+          },
+          {
+            "name": "Rebalance"
           },
           {
             "name": "Withdraw"

@@ -17,6 +17,8 @@ pub enum ErrorCode {
     InvalidMintAuthority,
     #[msg("UninitializedAccount")]
     UninitializedAccount,
+    #[msg("AlreadyInitializedAccount")]
+    AlreadyInitializedAccount,
     #[msg("IncorrectOwner")]
     IncorrectOwner,
     #[msg("PublicKeysShouldBeUnique")]
@@ -48,6 +50,8 @@ pub enum ErrorCode {
 
     #[msg("Invalid vault state")]
     InvalidVaultState,
+    #[msg("Invalid vault store")]
+    InvalidVaultStore,
     #[msg("Non-existent Asset")]
     NonexistentAsset,
     #[msg("Invalid LP Mint")]
@@ -77,10 +81,6 @@ pub enum ErrorCode {
     MissingRequiredField,
     #[msg("Missing required config")]
     MissingRequiredConfig,
-    #[msg("Cannot reinstantiate farm vault")]
-    CannotReinstantiateFarmVault,
-    #[msg("Missing farm vault")]
-    MissingFarmVault,
     #[msg("Unexpected authority")]
     UnexpectedAuthority,
     #[msg("Decimal mismatch")]
@@ -90,4 +90,6 @@ pub enum ErrorCode {
 
     #[msg("Unable to write to remaining account")]
     UnableToWriteToRemainingAccount,
+    #[msg("Expected non-zero returns")]
+    ExpectedNonzeroReturns,
 }

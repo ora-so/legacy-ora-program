@@ -1,5 +1,5 @@
 use crate::{
-    constant::{GLOBAL_STATE_SEED, HISTORY_SEED, VAULT_SEED},
+    constant::{GLOBAL_STATE_SEED, HISTORY_SEED, VAULT_SEED, VAULT_STORE_SEED},
     error::ErrorCode,
     state::{vault::Vault, GlobalProtocolState, History},
     util::{mint_with_verified_ata, spl_token_transfer},
@@ -31,6 +31,10 @@ pub struct Claim<'info> {
         constraint = vault.authority == authority.key(),
     )]
     pub vault: Box<Account<'info, Vault>>,
+
+    /// CHECK: verified via instruction access_control
+    #[account(mut)]
+    pub vault_store: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -100,8 +104,9 @@ pub fn handle(ctx: Context<Claim>) -> ProgramResult {
     let claim_amount = ctx.accounts.history.claim;
     let deposit_amount = ctx.accounts.history.cumulative;
 
-    let authority = ctx.accounts.authority.key();
-    let vault_signer_seeds = generate_vault_seeds!(authority.as_ref(), ctx.accounts.vault.bump);
+    let vault_key = ctx.accounts.vault.key();
+    let vault_store_signer_seeds =
+        generate_vault_store_seeds!(*vault_key.as_ref(), ctx.accounts.vault.vault_store_bump);
 
     if claim_amount > 0 {
         msg!("claim amount: {:?}", claim_amount);
@@ -110,14 +115,17 @@ pub fn handle(ctx: Context<Claim>) -> ProgramResult {
             ctx.accounts.token_program.to_account_info(),
             ctx.accounts.source_ata.to_account_info(),
             ctx.accounts.destination_ata.to_account_info(),
-            ctx.accounts.vault.to_account_info(),
-            &[vault_signer_seeds],
-            claim_amount
+            ctx.accounts.vault_store.to_account_info(),
+            &[vault_store_signer_seeds],
+            claim_amount,
         )?;
 
         // don't need deref_mut right?
         ctx.accounts.history.reset_claim();
     }
+
+    let authority = ctx.accounts.authority.key();
+    let vault_signer_seeds = generate_vault_seeds!(authority.as_ref(), ctx.accounts.vault.bump);
 
     // mint LP (SPL token) to user relative to the deposited amount to represent their position
     if ctx.accounts.history.can_claim_tranche_lp {
@@ -140,7 +148,7 @@ pub fn handle(ctx: Context<Claim>) -> ProgramResult {
             vault_signer_seeds,
             lp_amount, // 1-1 asset to LP amount
         )?;
-    
+
         ctx.accounts.history.claim_tranche_lp();
     }
 

@@ -1,5 +1,7 @@
 use crate::{
-    constant::{DEPOSIT_STATE, INACTIVE_STATE, LIVE_STATE, REDEEM_STATE, WITHDRAW_STATE},
+    constant::{
+        DEPOSIT_STATE, INACTIVE_STATE, LIVE_STATE, REBALANCE_STATE, REDEEM_STATE, WITHDRAW_STATE,
+    },
     error::ErrorCode,
     state::asset::Asset,
 };
@@ -43,6 +45,7 @@ pub enum State {
     Deposit,
     Live,
     Redeem,
+    Rebalance,
     Withdraw,
 }
 
@@ -59,6 +62,11 @@ pub struct Vault {
     pub bump: u8,
     /// entity that created the vault and has rights to perform limited CRUD operations
     pub authority: Pubkey,
+    /// proxy account that will hold all tokens for the vault
+    pub vault_store: Pubkey,
+    /// vault_store bump since vault_store can't hold any data; and so that we don't have
+    /// to pass into every instruction
+    pub vault_store_bump: u8,
     /// asset with a fixed return from vault
     pub alpha: Asset,
     /// asset with a variable return from vault
@@ -83,11 +91,10 @@ pub struct Vault {
     pub invest_duration: u64,
     /// timestamp at which strategist actually transitioned to the redeem state
     pub redeemed_at: Option<u64>,
-
-    /// proxy account that will hold all LP tokens for the vault
-    /// since interactions require the account to carry 0 data.
-    /// None until assigned.
-    pub farm_vault: Option<Pubkey>,
+    /// timestamp at which strategist actually transitioned to the rebalance state
+    pub rebalanced_at: Option<u64>,
+    /// boolean indicating whether or not funds have been rebalanced based on expected returns
+    pub reblanced: bool,
 }
 
 impl Vault {
@@ -95,6 +102,8 @@ impl Vault {
         &mut self,
         bump: u8,
         authority: Pubkey,
+        vault_store: Pubkey,
+        vault_store_bump: u8,
         config: VaultConfig,
         alpha: Asset,
         beta: Asset,
@@ -107,6 +116,8 @@ impl Vault {
 
         // vault config
         self.authority = authority;
+        self.vault_store = vault_store;
+        self.vault_store_bump = vault_store_bump;
         self.strategy = config.strategy;
         self.strategist = config.strategist;
         self.fixed_rate = config.fixed_rate;
@@ -116,9 +127,9 @@ impl Vault {
         self.invested_at = None;
         self.invest_duration = config.invest_duration;
         self.redeemed_at = None;
+        self.rebalanced_at = None;
+        self.reblanced = false;
         self.state = State::Inactive;
-
-        self.farm_vault = None;
     }
 
     pub fn update_authority(&mut self, authority: Pubkey) {
@@ -138,8 +149,8 @@ impl Vault {
     }
 
     pub fn can_disperse_funds(&self) -> bool {
-        // vault state is in redeem state and funds have been received
-        return self.state == State::Redeem && (self.alpha.received > 0 || self.beta.received > 0);
+        // vault state is in rebalance state and funds have been reblanced
+        return self.state == State::Rebalance && self.reblanced;
     }
 
     // we allow non-linear transitions because `transition` is a permmissioned instruction
@@ -147,25 +158,58 @@ impl Vault {
     // @dev: previously, we allowed linear state machine transition based mostly on timestamps, but
     //       we pivoted to this approach givent the possibile cluster time drift + the lack of oracles
     //       providing timestamps
+    //
+    // @dev: we don't enforrce time constraints but we do enforce order of state transitions. even the
+    //       strategist must by abide by some order.
+    //
     pub fn transition(&mut self, target: String, ts: u64) -> ProgramResult {
         let _target = target.trim().to_lowercase();
 
-        // todo: do we enforce duration here?
         match &_target as &str {
             INACTIVE_STATE => self.state = State::Inactive,
             DEPOSIT_STATE => {
+                if self.state != State::Inactive {
+                    return Err(ErrorCode::MissingTransitionAtTimeForState.into());
+                }
                 self.state = State::Deposit;
                 self.started_at = Some(ts);
             }
             LIVE_STATE => {
+                if self.state != State::Deposit {
+                    return Err(ErrorCode::MissingTransitionAtTimeForState.into());
+                }
                 self.state = State::Live;
                 self.invested_at = Some(ts);
             }
             REDEEM_STATE => {
+                if self.state != State::Live {
+                    return Err(ErrorCode::MissingTransitionAtTimeForState.into());
+                }
                 self.state = State::Redeem;
                 self.redeemed_at = Some(ts);
             }
-            WITHDRAW_STATE => self.state = State::Withdraw,
+            REBALANCE_STATE => {
+                if self.state != State::Redeem {
+                    return Err(ErrorCode::MissingTransitionAtTimeForState.into());
+                }
+                // enforce non-zero returns in at least 1 tranche before moving to rebalance state
+                if self.alpha.received == 0 && self.beta.received == 0 {
+                    return Err(ErrorCode::ExpectedNonzeroReturns.into());
+                }
+                self.state = State::Rebalance;
+                self.rebalanced_at = Some(ts);
+            }
+            WITHDRAW_STATE => {
+                if self.state != State::Rebalance {
+                    return Err(ErrorCode::MissingTransitionAtTimeForState.into());
+                }
+
+                if !self.can_disperse_funds() {
+                    return Err(ErrorCode::InvalidVaultState.into());
+                }
+
+                self.state = State::Withdraw
+            }
             _ => return Err(ErrorCode::MissingTransitionAtTimeForState.into()),
         }
 
@@ -176,9 +220,9 @@ impl Vault {
     // transition vault state. this approach is only applicable for the following states, not based on timestamp.
     pub fn try_transition(&mut self) -> ProgramResult {
         match self.state {
-            State::Redeem => {
+            State::Rebalance => {
                 if self.can_disperse_funds() {
-                    self.state = State::Withdraw;
+                    self.transition(WITHDRAW_STATE.to_string(), 0)?;
                 }
 
                 Ok(())
@@ -233,34 +277,14 @@ impl Vault {
             && self.state != State::Inactive;
     }
 
-    pub fn can_perform_swap(&self) -> bool {
-        // withdraw too in case not everything fit within redeem?
-        return self.state != State::Live || self.state != State::Redeem;
-    }
+    // pub fn can_perform_swap(&self) -> bool {
+    //     // withdraw too in case not everything fit within redeem?
+    //     return self.state != State::Live || self.state != State::Redeem;
+    // }
 
-    // call during init_user_farm
-    pub fn assign_farm_vault(&mut self, farm_vault: &Pubkey) -> Result<(), ProgramError> {
-        // farm vault can only be assigned once per vault lifetime
-        match self.farm_vault {
-            Some(_) => return Err(ErrorCode::CannotReinstantiateFarmVault.into()),
-            None => {
-                self.farm_vault = Some(*farm_vault);
-                Ok(())
-            }
-        }
-    }
+    pub fn verify_vault_store(&mut self, vault_store: &Pubkey) -> Result<(), ProgramError> {
+        require!(self.vault_store == *vault_store, PublicKeyMismatch);
 
-    // assert the given farm vault match what is registered on the vault. farm vault will be none
-    // if the user farm has not been inititialized. this is expected because the orca CPI call would
-    // also fail without a valid user farm account.
-    // this is on the strategy as opposed to the vault because it is an attribute specific to saber
-    pub fn verify_farm_vault(&mut self, farm_vault: &Pubkey) -> Result<(), ProgramError> {
-        match self.farm_vault {
-            Some(_farm_vault) => {
-                require!(_farm_vault == *farm_vault, PublicKeyMismatch);
-                Ok(())
-            }
-            None => return Err(ErrorCode::MissingFarmVault.into()),
-        }
+        Ok(())
     }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    constant::{GLOBAL_STATE_SEED, VAULT_SEED},
+    constant::{GLOBAL_STATE_SEED, VAULT_SEED, VAULT_STORE_SEED},
     error::{ErrorCode, OraResult},
     state::vault::State,
     state::{vault::Vault, GlobalProtocolState},
@@ -34,6 +34,10 @@ pub struct Withdraw<'info> {
         constraint = vault.authority == authority.key(),
     )]
     pub vault: Box<Account<'info, Vault>>,
+
+    /// CHECK: manually initialized PDA; verified in instruction
+    #[account(mut)]
+    pub vault_store: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub mint: Box<Account<'info, Mint>>,
@@ -140,15 +144,16 @@ pub fn handle(ctx: Context<Withdraw>, amount: u64) -> ProgramResult {
         ctx.accounts.lp.decimals,
     )?;
 
-    let authority = ctx.accounts.authority.key();
-    let vault_signer_seeds = generate_vault_seeds!(authority.as_ref(), ctx.accounts.vault.bump);
+    let vault_key = ctx.accounts.vault.key();
+    let vault_store_signer_seeds =
+        generate_vault_store_seeds!(*vault_key.as_ref(), ctx.accounts.vault.vault_store_bump);
 
     spl_token_transfer(
         ctx.accounts.token_program.to_account_info(),
         ctx.accounts.source_ata.to_account_info(),
         ctx.accounts.destination_ata.to_account_info(),
-        ctx.accounts.vault.to_account_info(),
-        &[vault_signer_seeds],
+        ctx.accounts.vault_store.to_account_info(),
+        &[vault_store_signer_seeds],
         withdrawal_amount,
     )?;
 

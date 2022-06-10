@@ -7,18 +7,18 @@ use {
     anchor_lang::prelude::*,
 };
 
-#[repr(C)]
-#[derive(AnchorSerialize, AnchorDeserialize, Debug, Default, PartialEq)]
-pub struct SwapConfig {
-    /// max number of tokens to put into the pool
-    pub max_in: u64,
-    /// min number of tokens expected out of the pool
-    pub min_out: u64,
-    /// swap direction: alpha_to_beta swaps alpha for beta, !alpha_to_beta swaps beta for alpha
-    /// this allows the strategist to compute swap info at the SDK layer and then pass that info
-    /// to the instruction.
-    pub alpha_to_beta: bool,
-}
+// #[repr(C)]
+// #[derive(AnchorSerialize, AnchorDeserialize, Debug, Default, PartialEq)]
+// pub struct SwapConfig {
+//     /// max number of tokens to put into the pool
+//     pub max_in: u64,
+//     /// min number of tokens expected out of the pool
+//     pub min_out: u64,
+//     /// swap direction: alpha_to_beta swaps alpha for beta, !alpha_to_beta swaps beta for alpha
+//     /// this allows the strategist to compute swap info at the SDK layer and then pass that info
+//     /// to the instruction.
+//     pub alpha_to_beta: bool,
+// }
 
 pub fn balance_difference(
     token_account: &mut Account<TokenAccount>,
@@ -40,10 +40,8 @@ pub fn verify_received(
     Ok(received)
 }
 
-// todo: add input lp amount
 pub trait Redeem<'info> {
     fn redeem(&mut self, min_token_a: u64, min_token_b: u64) -> ProgramResult;
-    fn adjust_returns(&mut self, swap_config: Option<SwapConfig>) -> ProgramResult;
 }
 
 ///  Based on a vault's strategy, we will deserialize the related account state and call
@@ -55,7 +53,6 @@ pub fn handle<'info, T: Redeem<'info> + HasVault>(
     ctx: Context<'_, '_, '_, 'info, T>,
     min_token_a: u64,
     min_token_b: u64,
-    swap_config: Option<SwapConfig>,
 ) -> ProgramResult {
     let vault = ctx.accounts.vault();
 
@@ -69,9 +66,5 @@ pub fn handle<'info, T: Redeem<'info> + HasVault>(
     }
 
     // burn LP for underlying assets in downstream protocol
-    ctx.accounts.redeem(min_token_a, min_token_b)?;
-    // perform any required swaps to make senior tranche whole
-    ctx.accounts.adjust_returns(swap_config)?;
-
-    Ok(())
+    ctx.accounts.redeem(min_token_a, min_token_b)
 }

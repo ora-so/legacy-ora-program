@@ -4,6 +4,12 @@ macro_rules! generate_vault_seeds {
     }};
 }
 
+macro_rules! generate_vault_store_seeds {
+    ($a:expr, $b:expr) => {{
+        &[VAULT_STORE_SEED.as_bytes(), $a.as_ref(), &[$b]]
+    }};
+}
+
 macro_rules! math_error {
     () => {{
         || {

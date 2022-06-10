@@ -436,6 +436,25 @@ export const createWSOLAccountInstructions = (
   };
 };
 
+export const resolveAtaForPda = async (
+  mint: PublicKey,
+  owner: PublicKey,
+  payer: PublicKey,
+  connection: Connection
+): Promise<CompositeATAResult> => {
+  console.log(
+    `normal ATA for owner [${owner.toBase58()}] and mint [${mint.toBase58()}]`
+  );
+  const result = await getOrCreateATA(mint, owner, payer, connection);
+
+  return {
+    address: result.address,
+    instructions: result.instructions,
+    cleanup: [],
+    signers: [],
+  };
+};
+
 export const resolveAtaForDeposit = async (
   mint: PublicKey,
   owner: PublicKey,
@@ -468,19 +487,19 @@ export const resolveAtaForDeposit = async (
       cleanup: result.cleanupInstructions,
       signers: result.signers,
     } as CompositeATAResult;
-  } else {
-    console.log(
-      `normal ATA for owner [${owner.toBase58()}] and mint [${mint.toBase58()}]`
-    );
-    const result = await getOrCreateATA(mint, owner, payer, connection);
-
-    return {
-      address: result.address,
-      instructions: result.instructions,
-      cleanup: [],
-      signers: [],
-    };
   }
+
+  console.log(
+    `normal ATA for owner [${owner.toBase58()}] and mint [${mint.toBase58()}]`
+  );
+  const result = await getOrCreateATA(mint, owner, payer, connection);
+
+  return {
+    address: result.address,
+    instructions: result.instructions,
+    cleanup: [],
+    signers: [],
+  };
 };
 
 // ==========================================
@@ -489,7 +508,7 @@ export const resolveAtaForDeposit = async (
 // todo: in future, maybe take token pair and find pool info?
 // ==========================================
 export const getFarmData = async (
-  farmOwner: PublicKey,
+  farmOwner: PublicKey, // PDA here
   aquafarmProgram: PublicKey,
   farmParams: OrcaFarmParams,
   payer: PublicKey,
@@ -527,7 +546,7 @@ export const getFarmData = async (
   );
 
   // If the user lacks the farm token account, create it
-  const userFarm = await resolveAtaForDeposit(
+  const userFarm = await resolveAtaForPda(
     _farm.globalFarm.farmTokenMint,
     farmOwner,
     payer,
@@ -535,7 +554,7 @@ export const getFarmData = async (
   );
 
   // If the user lacks the reward token account, create it
-  const userReward = await resolveAtaForDeposit(
+  const userReward = await resolveAtaForPda(
     rewardTokenMint,
     farmOwner,
     payer,
@@ -543,7 +562,7 @@ export const getFarmData = async (
   );
 
   // If the user lacks the base token account, create it
-  const userBase = await resolveAtaForDeposit(
+  const userBase = await resolveAtaForPda(
     farmParams.baseTokenMint,
     farmOwner,
     payer,
@@ -705,12 +724,12 @@ export class VaultClient extends AccountUtils {
     } as PdaDerivationResult;
   };
 
-  generateVaultFarmAddress = async (
+  generateVaultStoreAddress = async (
     vault: PublicKey,
     programID: PublicKey = this.vaultProgram.programId
   ): Promise<PdaDerivationResult> => {
     const [addr, bump] = await this.findProgramAddress(programID, [
-      "farmvault",
+      "vaultstore",
       vault,
     ]);
 
@@ -1168,42 +1187,27 @@ export class VaultClient extends AccountUtils {
     const gpsAuthorityInfo: SignerInfo = getSignersFromPayer(gpsAuthority);
 
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
-    const { addr: vault, bump } = await this.generateVaultAddress(
+    const { addr: vault, bump: vaultBump } = await this.generateVaultAddress(
       signerInfo.payer
     );
+    const { addr: vaultStore, bump: vaultStoreBump } =
+      await this.generateVaultStoreAddress(vault);
 
+    // todo: are these alpha/beta ATAs even needed????
     const alpha = vaultConfig.alpha.mint;
     const alphaDecimals = (await this.fetchTokenSupply(vaultConfig.alpha.mint))
       .decimals;
     const alphaLp = Keypair.generate();
-    const vaultLpA = await resolveAtaForDeposit(
-      alphaLp.publicKey,
-      vault,
-      signerInfo.payer,
-      this.provider.connection
-    );
 
     const beta = vaultConfig.beta.mint;
     const betaDecimals = (await this.fetchTokenSupply(vaultConfig.beta.mint))
       .decimals;
     const betaLp = Keypair.generate();
-    const vaultLpB = await resolveAtaForDeposit(
-      betaLp.publicKey,
-      vault,
-      signerInfo.payer,
-      this.provider.connection
-    );
 
     console.log("alpha: ", alpha.toBase58());
     console.log("alha lp: ", alphaLp.publicKey.toBase58());
     console.log("beta: ", beta.toBase58());
     console.log("beta lp: ", betaLp.publicKey.toBase58());
-
-    // don't allow someone to shoot themselves in the foot; move to verify vault create?
-    // const now = new Date().getTime();
-    // if (vaultConfig.startAt.toNumber() < now) {
-    //   throw new Error("Cannot create vault with start date in the past");
-    // }
 
     if (alpha.toBase58() === beta.toBase58()) {
       throw new Error(
@@ -1214,7 +1218,8 @@ export class VaultClient extends AccountUtils {
     if (executeTransaction) {
       // `indefinite span` transaction error can happen when using `undefined` instead of `null` for optional types.
       return this.vaultProgram.rpc.initializeVault(
-        bump,
+        vaultBump,
+        vaultStoreBump,
         {
           authority: vaultConfig.authority,
           strategy: vaultConfig.strategy,
@@ -1239,12 +1244,16 @@ export class VaultClient extends AccountUtils {
             gpsAuthority: gpsAuthorityInfo.payer,
             globalProtocolState: globalStateAddr,
             vault,
+            vaultStore,
             alphaMint: alpha,
             alphaLp: alphaLp.publicKey,
             betaMint: beta,
             betaLp: betaLp.publicKey,
             systemProgram: SystemProgram.programId,
+            rent: SYSVAR_RENT_PUBKEY,
           },
+          // todo: vault is mint/freeze authority for now
+          // todo: move to anchor?
           preInstructions: [
             ...(await this.mintTokens(
               this.provider.connection,
@@ -1262,8 +1271,6 @@ export class VaultClient extends AccountUtils {
               vault,
               betaDecimals
             )),
-            ...vaultLpA.instructions,
-            ...vaultLpB.instructions,
           ],
           signers: [
             alphaLp,
@@ -1305,6 +1312,7 @@ export class VaultClient extends AccountUtils {
     return "nan";
   };
 
+  // todo: deposit directly into the vault_store
   deposit = async (
     vault: PublicKey,
     mint: PublicKey,
@@ -1314,6 +1322,9 @@ export class VaultClient extends AccountUtils {
   ) => {
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
     const _vault = await this.fetchVault(vault);
+
+    const { addr: vaultStore } = await this.generateVaultStoreAddress(vault);
+    console.log("vaultStore: ", vaultStore.toBase58());
 
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
     console.log("globalStateAddr: ", globalStateAddr.toBase58());
@@ -1329,9 +1340,9 @@ export class VaultClient extends AccountUtils {
     console.log("sourceTokenAccount: ", sourceTokenAccount.address.toBase58());
 
     // @dev: don't close ATA at the end of the transaction
-    const destinationTokenAccount = await resolveAtaForDeposit(
+    const destinationTokenAccount = await resolveAtaForPda(
       mint,
-      vault,
+      vaultStore,
       signerInfo.payer,
       this.provider.connection
     );
@@ -1340,7 +1351,6 @@ export class VaultClient extends AccountUtils {
       destinationTokenAccount.address.toBase58()
     );
 
-    // todo: does this work?
     const _asset = await this.getAsset(toIVault(_vault), mint);
     console.log("_asset: ", _asset);
 
@@ -1373,6 +1383,7 @@ export class VaultClient extends AccountUtils {
             authority: _vault.authority,
             globalProtocolState: globalStateAddr,
             vault,
+            vaultStore,
             receipt,
             history,
             mint,
@@ -1399,6 +1410,7 @@ export class VaultClient extends AccountUtils {
     return "nan";
   };
 
+  // todo: claim directly into the vault_store
   claim = async (
     vault: PublicKey,
     mint: PublicKey,
@@ -1407,15 +1419,17 @@ export class VaultClient extends AccountUtils {
   ) => {
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
 
+    const { addr: vaultStore } = await this.generateVaultStoreAddress(vault);
+    console.log("vaultStore: ", vaultStore.toBase58());
+
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
     const _vault = await this.fetchVault(vault);
     const _asset = this.getAsset(toIVault(_vault), mint);
     const _assetLp = _asset.lp;
 
-    // todo: does resolveAtaForDeposit work for all these?
-    const sourceAssetAta = await resolveAtaForDeposit(
+    const sourceAssetAta = await resolveAtaForPda(
       mint,
-      vault,
+      vaultStore,
       signerInfo.payer,
       this.provider.connection
     );
@@ -1447,6 +1461,7 @@ export class VaultClient extends AccountUtils {
           authority: _vault.authority,
           globalProtocolState: globalStateAddr,
           vault,
+          vaultStore,
           history,
           mint,
           lp: _assetLp,
@@ -1485,6 +1500,8 @@ export class VaultClient extends AccountUtils {
   ) => {
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
+    const { addr: vaultStore } = await this.generateVaultStoreAddress(vault);
+
     const _vault = await this.fetchVault(vault);
     console.log("_vault: ", _vault);
 
@@ -1495,6 +1512,7 @@ export class VaultClient extends AccountUtils {
       this,
       signerInfo.payer,
       vault,
+      vaultStore,
       pool,
       poolParams,
       alpha,
@@ -1539,6 +1557,7 @@ export class VaultClient extends AccountUtils {
             authority: _vault.authority,
             globalProtocolState: globalStateAddr,
             vault,
+            vaultStore,
             strategy: _vault.strategy,
             systemProgram: SystemProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
@@ -1730,7 +1749,7 @@ export class VaultClient extends AccountUtils {
     vaultAddress: PublicKey,
     vault: IVault,
     mint: PublicKey,
-    count: number = 10
+    count: number = 2
   ): Promise<AccountMeta[]> => {
     const asset = this.getAsset(vault, mint);
 
@@ -1942,6 +1961,8 @@ export class VaultClient extends AccountUtils {
   ): Promise<string> => {
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
+    const { addr: vaultStore } = await this.generateVaultStoreAddress(vault);
+
     const _vault = await this.fetchVault(vault);
 
     const orca = getOrca(this.provider.connection, clusterToNetwork(cluster));
@@ -1952,6 +1973,7 @@ export class VaultClient extends AccountUtils {
       this,
       signerInfo.payer,
       vault,
+      vaultStore,
       pool,
       poolParams,
       _invalidAmount,
@@ -2040,13 +2062,13 @@ export class VaultClient extends AccountUtils {
       return this.vaultProgram.rpc.redeemOrca(
         amountTokenA as any,
         amountTokenB as any,
-        null, // swapConfig as any, // todo: does this work?
         {
           accounts: {
             payer: signerInfo.payer, // must be strategist
             authority: _vault.authority,
             globalProtocolState: globalStateAddr,
             vault,
+            vaultStore,
             strategy: _vault.strategy,
             systemProgram: SystemProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
@@ -2073,6 +2095,7 @@ export class VaultClient extends AccountUtils {
     return "NaN";
   };
 
+  // todo: withdraw directly from the vault_store
   withdraw = async (
     vault: PublicKey,
     mint: PublicKey,
@@ -2084,6 +2107,8 @@ export class VaultClient extends AccountUtils {
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
 
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
+    const { addr: vaultStore } = await this.generateVaultStoreAddress(vault);
+
     const _vault = await this.fetchVault(vault);
 
     const lpAmount = await this.fetchTokenBalance(lp, signerInfo.payer);
@@ -2102,9 +2127,9 @@ export class VaultClient extends AccountUtils {
 
     // @dev: don't create ATA at the beginning or close at the end of the transaction,
     // related to vault
-    const sourceTokenAccount = await resolveAtaForDeposit(
+    const sourceTokenAccount = await resolveAtaForPda(
       mint,
-      vault,
+      vaultStore,
       signerInfo.payer,
       this.provider.connection
     );
@@ -2123,6 +2148,7 @@ export class VaultClient extends AccountUtils {
           authority: _vault.authority,
           globalProtocolState: globalStateAddr,
           vault,
+          vaultStore,
           mint,
           lp,
           sourceLp: sourceLpAccount.address,
@@ -2153,11 +2179,10 @@ export class VaultClient extends AccountUtils {
   ): Promise<string> => {
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
+    const { addr: vaultStore } = await this.generateVaultStoreAddress(vault);
+
     const _vault = await this.fetchVault(vault);
     console.log("_vault: ", _vault);
-    const { addr: farmVault, bump } = await this.generateVaultFarmAddress(
-      vault
-    );
 
     const orca = getOrca(this.provider.connection, clusterToNetwork(cluster));
     const farmParams =
@@ -2167,7 +2192,7 @@ export class VaultClient extends AccountUtils {
     if (!farmParams) throw new Error("farm cannot be null");
 
     const farmData = await getFarmData(
-      farmVault,
+      vaultStore,
       aquafarmProgram,
       farmParams,
       signerInfo.payer,
@@ -2177,14 +2202,14 @@ export class VaultClient extends AccountUtils {
     const { instructions, cleanup, signers } = farmData.instructions;
 
     if (executeTransaction) {
-      return this.vaultProgram.rpc.harvestOrca(bump, {
+      return this.vaultProgram.rpc.harvestOrca({
         accounts: {
           payer: signerInfo.payer,
           authority: _vault.authority,
           globalProtocolState: globalStateAddr,
           vault,
+          vaultStore,
           strategy: _vault.strategy,
-          farmVault,
           aquafarmProgram,
           globalFarm: farmData.farm.globalFarm.publicKey,
           userFarm: farmData.userFarm,
@@ -2213,9 +2238,7 @@ export class VaultClient extends AccountUtils {
   ): Promise<string> => {
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
-    const { addr: farmVault, bump } = await this.generateVaultFarmAddress(
-      vault
-    );
+    const { addr: vaultStore } = await this.generateVaultStoreAddress(vault);
 
     const orca = getOrca(this.provider.connection, clusterToNetwork(cluster));
     const farmParams =
@@ -2224,15 +2247,15 @@ export class VaultClient extends AccountUtils {
         : getDoubleDipFarm(orca, pair);
     if (!farmParams) throw new Error("farm cannot be null");
 
-    const vaultLp = await resolveAtaForDeposit(
+    const vaultLp = await resolveAtaForPda(
       farmParams.baseTokenMint,
-      vault,
+      vaultStore,
       signerInfo.payer,
       this.provider.connection
     );
 
     const farmData = await getFarmData(
-      farmVault,
+      vaultStore,
       aquafarmProgram,
       farmParams,
       signerInfo.payer,
@@ -2242,13 +2265,13 @@ export class VaultClient extends AccountUtils {
     const _vault = await this.fetchVault(vault);
     const { instructions, cleanup, signers } = farmData.instructions;
     if (executeTransaction) {
-      return this.vaultProgram.rpc.convertOrcaLp(bump, {
+      return this.vaultProgram.rpc.convertOrcaLp({
         accounts: {
           payer: signerInfo.payer,
           authority: _vault.authority,
           globalProtocolState: globalStateAddr,
           vault,
-          farmVault,
+          vaultStore,
           strategy: _vault.strategy,
           aquafarmProgram,
           poolAccount: vaultLp.address,
@@ -2284,9 +2307,7 @@ export class VaultClient extends AccountUtils {
   ): Promise<string> => {
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
-    const { addr: farmVault, bump } = await this.generateVaultFarmAddress(
-      vault
-    );
+    const { addr: vaultStore } = await this.generateVaultStoreAddress(vault);
 
     const orca = getOrca(this.provider.connection, clusterToNetwork(cluster));
     const farmParams =
@@ -2295,15 +2316,15 @@ export class VaultClient extends AccountUtils {
         : getDoubleDipFarm(orca, pair);
     if (!farmParams) throw new Error("farm cannot be null");
 
-    const vaultLp = await resolveAtaForDeposit(
+    const vaultLp = await resolveAtaForPda(
       farmParams.baseTokenMint,
-      vault,
+      vaultStore,
       signerInfo.payer,
       this.provider.connection
     );
 
     const farmData = await getFarmData(
-      farmVault,
+      vaultStore,
       aquafarmProgram,
       farmParams,
       signerInfo.payer,
@@ -2314,13 +2335,13 @@ export class VaultClient extends AccountUtils {
     const { instructions, cleanup, signers } = farmData.instructions;
 
     if (executeTransaction) {
-      return this.vaultProgram.rpc.revertOrcaLp(bump, {
+      return this.vaultProgram.rpc.revertOrcaLp({
         accounts: {
           payer: signerInfo.payer,
           authority: _vault.authority,
           globalProtocolState: globalStateAddr,
           vault,
-          farmVault,
+          vaultStore,
           strategy: _vault.strategy,
           aquafarmProgram,
           poolAccount: vaultLp.address,
@@ -2354,12 +2375,10 @@ export class VaultClient extends AccountUtils {
   ): Promise<string> => {
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
-    const { addr: farmVault, bump } = await this.generateVaultFarmAddress(
-      vault
-    );
+    const { addr: vaultStore } = await this.generateVaultStoreAddress(vault);
 
     const farmData = await getFarmData(
-      farmVault,
+      vaultStore,
       aquafarmProgram,
       farmParams,
       signerInfo.payer,
@@ -2368,13 +2387,13 @@ export class VaultClient extends AccountUtils {
 
     const _vault = await this.fetchVault(vault);
     if (executeTransaction) {
-      return this.vaultProgram.rpc.initializeUserFarmOrca(bump, {
+      return this.vaultProgram.rpc.initializeUserFarmOrca({
         accounts: {
           payer: signerInfo.payer,
           authority: _vault.authority,
           globalProtocolState: globalStateAddr,
           vault,
-          farmVault,
+          vaultStore,
           strategy: _vault.strategy,
           aquafarmProgram,
           globalFarm: farmData.farm.globalFarm.publicKey,
@@ -2401,9 +2420,7 @@ export class VaultClient extends AccountUtils {
   ) => {
     const signerInfo: SignerInfo = getSignersFromPayer(payer);
     const { addr: globalStateAddr } = await this.generateGlobalStateAddress();
-    const { addr: farmVault, bump } = await this.generateVaultFarmAddress(
-      vault
-    );
+    const { addr: vaultStore } = await this.generateVaultStoreAddress(vault);
 
     const { inputPoolToken, outputPoolToken } = getTokens(
       poolParams,
@@ -2417,13 +2434,11 @@ export class VaultClient extends AccountUtils {
       "minimumAmountOut"
     );
 
-    // could also be something else?
-    const swapAuthority = farmVault;
     const swapConfig = await getSwapConfig(
       inputPoolToken,
       amountInU64,
       outputPoolToken,
-      swapAuthority,
+      vaultStore, // swap authority
       signerInfo.payer,
       this.provider.connection
     );
@@ -2431,7 +2446,6 @@ export class VaultClient extends AccountUtils {
     const _vault = await this.fetchVault(vault);
     if (executeTransaction) {
       return this.vaultProgram.rpc.swapOrca(
-        bump, // irrelevant for now, only PDAs
         amountInU64 as any,
         minimumAmountOutU64 as any,
         {
@@ -2440,9 +2454,8 @@ export class VaultClient extends AccountUtils {
             authority: _vault.authority,
             globalProtocolState: globalStateAddr,
             vault,
-            farmVault,
+            vaultStore,
             strategy: _vault.strategy,
-            userTransferAuthority: swapAuthority,
             orcaSwapProgram: orcaSwapProgram,
             orcaPool: poolParams.address,
             orcaAuthority: poolParams.authority,
@@ -2465,10 +2478,12 @@ export class VaultClient extends AccountUtils {
   };
 }
 
+// todo: for ANYTHING that goes wrong, check here almost first
 export const generatePoolConfigForVault = async (
   client: VaultClient,
   payer: PublicKey,
   vault: PublicKey,
+  vaultStore: PublicKey,
   pool: OrcaPool,
   poolParams: OrcaPoolParams,
   alpha: Decimal,
@@ -2489,9 +2504,9 @@ export const generatePoolConfigForVault = async (
     poolTokenB.mint.toBase58() === _vault.beta.mint.toBase58()
   ) {
     console.log("a is alpha, b is beta");
-    const vaultTokenA = await resolveAtaForDeposit(
+    const vaultTokenA = await resolveAtaForPda(
       poolTokenA.mint,
-      vault,
+      vaultStore,
       payer,
       client.provider.connection
     );
@@ -2503,9 +2518,9 @@ export const generatePoolConfigForVault = async (
       dest: poolTokenA.addr,
     };
 
-    const vaultTokenB = await resolveAtaForDeposit(
+    const vaultTokenB = await resolveAtaForPda(
       poolTokenB.mint,
-      vault,
+      vaultStore,
       payer,
       client.provider.connection
     );
@@ -2521,17 +2536,17 @@ export const generatePoolConfigForVault = async (
     poolTokenB.mint.toBase58() === _vault.alpha.mint.toBase58()
   ) {
     console.log("a is beta, b is alpha");
-    const vaultTokenA = await resolveAtaForDeposit(
+    const vaultTokenA = await resolveAtaForPda(
       poolTokenB.mint,
-      vault,
+      vaultStore,
       payer,
       client.provider.connection
     );
     instructionData = extendInstructionData(instructionData, vaultTokenA);
 
-    const vaultTokenB = await resolveAtaForDeposit(
+    const vaultTokenB = await resolveAtaForPda(
       poolTokenA.mint,
-      vault,
+      vaultStore,
       payer,
       client.provider.connection
     );
@@ -2556,9 +2571,9 @@ export const generatePoolConfigForVault = async (
   }
 
   // normal ATA
-  const vaultLp = await resolveAtaForDeposit(
+  const vaultLp = await resolveAtaForPda(
     poolTokenMint,
-    vault,
+    vaultStore,
     payer,
     client.provider.connection
   );
@@ -2576,7 +2591,7 @@ export const generatePoolConfigForVault = async (
     amountTokenB = maxTokenBIn;
     poolTokenAmount = minPoolTokenAmountOut;
   } else {
-    const withdrawTokenAmount = await pool.getLPBalance(vault); // in this case, the vault owns the LP
+    const withdrawTokenAmount = await pool.getLPBalance(vaultStore); // in this case, the vault owns the LP
     const withdrawTokenMint = pool.getPoolTokenMint();
     const { maxPoolTokenAmountIn, minTokenAOut, minTokenBOut } =
       await pool.getWithdrawQuote(withdrawTokenAmount, withdrawTokenMint);

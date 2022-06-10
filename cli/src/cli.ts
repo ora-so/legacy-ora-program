@@ -9,6 +9,7 @@ import {
   Transaction,
   TransactionResponse,
 } from "@solana/web3.js";
+
 import { program } from "commander";
 import log from "loglevel";
 import { u64 } from "@solana/spl-token";
@@ -88,6 +89,77 @@ export const DEFAULT_TOKEN_DECIMALS = 6;
 // ============================================================================
 // show account data commands
 // ============================================================================
+
+programCommand("get_signatures", false)
+  .option("-e, --env <string>", "Cluster name")
+  .option("-a, --address <pubkey>", "Address pubkey")
+  .action(async (_, cmd) => {
+    const { env, address } = cmd.opts();
+    const connection = new Connection(clusterApiUrl(env));
+    const _address = new PublicKey(address);
+
+    const sigObj = await connection.getSignaturesForAddress(_address, null);
+    console.log("num signatures: ", sigObj.length);
+    const signatures = sigObj.map((sig) => sig.signature);
+
+    console.log("num signatures: ", signatures.length);
+    console.log("signatures: ", signatures);
+    const tx = await connection.getParsedTransactions(signatures);
+
+    const _pId = new PublicKey("CRDRY8VKkjPBBoyurn3jQdy7n2TjgexDqfePno5gnQxV");
+
+    // filter out transactions with errors
+    tx.filter((_tx) => _tx.meta.err === null).forEach((_tx) => {
+      console.log("tx =======");
+      // Program CRDRY8VKkjPBBoyurn3jQdy7n2TjgexDqfePno5gnQxV invoke [1]
+      const logs = _tx.meta.logMessages;
+      let i = 0;
+      let print = false;
+      while (i < logs.length) {
+        let msg = logs[i];
+
+        if (print) {
+          console.log("msg: ", msg);
+          print = false;
+        }
+
+        if (msg.includes(`Program ${_pId.toBase58()} invoke`)) {
+          print = true;
+        }
+
+        i += 1;
+      }
+    });
+  });
+
+// ix parsed:  {
+//   parsed: {
+//     info: {
+//       lamports: 2039280,
+//       newAccount: 'BWWjZbjTBBZ9s33SH2jZvjvyL38kBioGgrAZ5YTQXpHb',
+//       owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+//       source: 'AQg4fJWqBSyhzEqpmkswnPcthJkw3AqfHqYi9wL1BSra',
+//       space: 165
+//     },
+//     type: 'createAccount'
+//   },
+//   program: 'system',
+//   programId: PublicKey { _bn: <BN: 0> }
+// }
+// ix parsed:  {
+//   accounts: [
+//     PublicKey {
+//       _bn: <BN: 9c24553735b423bf6da9b40c8578b8a7be424a17b9af5b7c0319a95366e4de7e>
+//     },
+//     PublicKey {
+//       _bn: <BN: 69b8857feab8184fb687f634618c035dac439dc1aeb3b5598a0f00000000001>
+//     }
+//   ],
+//   data: '6ahfHdVtMA6SMAkQnmrkjK9ZigJGvb4ey4cPrnSZAetvu',
+//   programId: PublicKey {
+//     _bn: <BN: 6ddf6e1d765a193d9cbe146ceeb79ac1cb485ed5f5b37913a8cf5857eff00a9>
+//   }
+// }
 
 programCommand("derive_vault")
   .option("-a, --authority <pubkey>", "Authority of the vault")
